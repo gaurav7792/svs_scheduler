@@ -683,7 +683,7 @@
 <header>
   <div class="logo-mark">SVS</div>
   <div>
-    <h1>PREP SCHEDULER</h1>
+    <h1>PREP SCHEDULER <span style="font-size:12px;font-weight:400;color:var(--text2);letter-spacing:0">v1.0</span></h1>
     <div class="sub">State vs State — Slot Assignment Tool</div>
   </div>
   <div class="header-right">
@@ -745,6 +745,9 @@
       <button class="export-btn-full" onclick="exportText()">
         📋 Copy Schedule Text
       </button>
+      <button class="export-btn-full" onclick="exportXLSX()" style="margin-top:6px;border-color:var(--border2)" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color=''">
+        📥 Export to XLSX
+      </button>
     </div>
   </aside>
 
@@ -783,7 +786,7 @@
           <div style="font-size:13px;color:var(--text2);margin-top:4px;font-style:italic">Developed by VKS 3156</div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
           <a href="https://forms.gle/DrGnEqUu9LBJCkHu9" target="_blank" style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:rgba(79,142,247,0.08);border:1px solid rgba(79,142,247,0.2);border-radius:10px;text-decoration:none;color:var(--accent);transition:background 0.15s" onmouseover="this.style.background='rgba(79,142,247,0.16)'" onmouseout="this.style.background='rgba(79,142,247,0.08)'">
             <span style="font-size:22px">📋</span>
             <div><div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:14px">Submit SVS Data</div><div style="font-size:11px;color:var(--text2)">Google Form for chiefs</div></div>
@@ -792,6 +795,20 @@
             <span style="font-size:22px">📊</span>
             <div><div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:14px">View Collected Responses</div><div style="font-size:11px;color:var(--text2)">Google Sheet — download XLSX from here</div></div>
           </a>
+          <a href="https://github.com/gaurav7792/svs_scheduler" target="_blank" style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:rgba(79,142,247,0.08);border:1px solid rgba(79,142,247,0.2);border-radius:10px;text-decoration:none;color:var(--accent);transition:background 0.15s" onmouseover="this.style.background='rgba(79,142,247,0.16)'" onmouseout="this.style.background='rgba(79,142,247,0.08)'">
+            <span style="font-size:22px">⭐</span>
+            <div><div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:14px">GitHub Repository</div><div style="font-size:11px;color:var(--text2)">Source code &amp; dummy data</div></div>
+          </a>
+        </div>
+
+        <!-- DEMO BANNER -->
+        <div style="margin-bottom:24px;padding:14px 18px;background:rgba(79,142,247,0.06);border:1px solid rgba(79,142,247,0.2);border-radius:10px;display:flex;align-items:flex-start;gap:12px">
+          <span style="font-size:20px;flex-shrink:0">📂</span>
+          <div>
+            <div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:14px;color:var(--accent);margin-bottom:4px">First time? Download sample SVS data to try it out</div>
+            <div style="font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:10px">Download the sample XLSX below, then drag it into the upload zone on the left.</div>
+            <a href="https://raw.githubusercontent.com/gaurav7792/svs_scheduler/main/SVS_Dummy_Data.xlsx" download style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--accent);text-decoration:none;padding:6px 12px;border:1px solid rgba(79,142,247,0.35);border-radius:6px;background:rgba(79,142,247,0.08);font-family:'Rajdhani',sans-serif;font-weight:700" onmouseover="this.style.background='rgba(79,142,247,0.16)'" onmouseout="this.style.background='rgba(79,142,247,0.08)'">⬇ Download Sample Data</a>
+          </div>
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
@@ -1471,7 +1488,6 @@ function runDay1() {
   document.getElementById('output-day-select').value = 'day1';
   renderOutputMessages();
   toast('✓ Day 1 schedule generated');
-  switchTab('day1');
 }
 
 function runDay2() {
@@ -1489,7 +1505,6 @@ function runDay2() {
   document.getElementById('output-day-select').value = 'day2';
   renderOutputMessages();
   toast('✓ Day 2 schedule generated');
-  switchTab('day2');
 }
 
 function runDay4() {
@@ -1521,7 +1536,6 @@ function runDay4() {
   document.getElementById('output-day-select').value = 'day4moe';
   renderOutputMessages();
   toast('✓ Day 4 MOE + VP generated');
-  switchTab('day4moe');
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2273,6 +2287,154 @@ function importOverrides(input) {
 
 // ── Init on load
 loadOverridesFromStorage();
+// ═══════════════════════════════════════════════════════════
+//  EXPORT TO XLSX
+// ═══════════════════════════════════════════════════════════
+function exportXLSX() {
+  const hasAny = ['day1','day2','day4moe','day4vp'].some(k=>schedules[k]&&schedules[k].length);
+  if (!chiefs.length && !hasAny) { toast('⚠ Nothing to export'); return; }
+
+  const wb = XLSX.utils.book_new();
+  const S = XLSX.utils.aoa_to_sheet;
+
+  // ── helpers ──
+  function numFmt(v) { return (v===null||v===undefined) ? '' : v; }
+
+  // ── Raw Data tab ──
+  if (chiefs.length) {
+    const eff = getEffectiveChiefs();
+    const hdr = ['Name','ID','Alliance','FC Level','Account Type',
+      'Constr SU','Research SU','Eff Res SU','Res Points','Training SU',
+      'Fire Crystals','FC Shards','Eff Shards','Steel (M)',
+      'Preferred Slots D1','Preferred Slots D2','Preferred Slots D4'];
+    const rows = eff.map(c=>[
+      c.name, c.id, c.alliance, c.fcLevel, c.acctType,
+      c.constr, c.research, c.resEff, c.resPoints, c.training,
+      c.fc, c.shards, Math.round(c.effShards)||0, c.steel||0,
+      c.slots1||'', c.slots2||'', c.slots3||''
+    ]);
+    XLSX.utils.book_append_sheet(wb, S([hdr,...rows]), 'Raw Data');
+  }
+
+  // ── Schedule + Leaderboard tabs ──
+  const schedTabs = [
+    { key:'day1',    name:'Day 1 — Construction', suLabel:'Constr SU',    lbKey:'day1',    lbSuKey:'constr',    lbSuLabel:'Constr SU'  },
+    { key:'day2',    name:'Day 2 — Research',     suLabel:'Res Points',   lbKey:'day2',    lbSuKey:'resPoints', lbSuLabel:'Res Points' },
+    { key:'day4moe', name:'Day 4 MOE',            suLabel:'Training SU',  lbKey:'day4',    lbSuKey:'training',  lbSuLabel:'Training SU'},
+    { key:'day4vp',  name:'Day 4 VP',             suLabel:'Training SU',  lbKey:'day4',    lbSuKey:'training',  lbSuLabel:'Training SU'},
+  ];
+
+  schedTabs.forEach(({key, name, suLabel, lbKey, lbSuKey, lbSuLabel}) => {
+    const data = schedules[key];
+    if (!data || !data.length) return;
+
+    const aoa = [];
+
+    // Schedule header
+    aoa.push(['Alliance','Chief Name','Chief ID','FC Level', suLabel,
+      ...(key==='day2' ? ['Eff Res SU'] : []),
+      'Preferred Windows','Assigned Slot','Match']);
+
+    data.forEach((c,i) => {
+      const a = c.assignment||{};
+      aoa.push([
+        c.alliance, c.name, c.id, c.fcLevel, c.su,
+        ...(key==='day2' ? [c.resEff] : []),
+        c[key==='day1'?'slots1':key==='day2'?'slots2':'slots3']||'No preference',
+        a.slot||'',
+        !a.slot ? '—' : a.preferred ? 'Preferred' : 'Closest available'
+      ]);
+    });
+
+    // Gap rows
+    aoa.push([]);
+    aoa.push([]);
+
+    // Leaderboard header
+    const lbData = [...getEffectiveChiefs()].sort((a,b)=>suSort(a,b,lbSuKey));
+    aoa.push(['— LEADERBOARD —']);
+    const lbHdr = ['Rank','Alliance','Chief Name','Chief ID','FC Level', lbSuLabel,
+      ...(lbKey==='day2' ? ['Eff Res SU','Raw SU','FC','FC Shards','Eff Shards','Steel (M)'] : []),
+      'Scheduled'];
+    aoa.push(lbHdr);
+
+    lbData.forEach((c,i) => {
+      const inTop = i < 48;
+      aoa.push([
+        i+1, c.alliance, c.name, c.id, c.fcLevel, c[lbSuKey],
+        ...(lbKey==='day2' ? [c.resEff, c.research, c.fc, c.shards||0, Math.round(c.effShards)||0, c.steel||0] : []),
+        inTop ? 'Yes' : 'No'
+      ]);
+    });
+
+    XLSX.utils.book_append_sheet(wb, S(aoa), name);
+  });
+
+  // ── Alliance Summary tab ──
+  if (chiefs.length) {
+    const eff = getEffectiveChiefs();
+    const stats = {};
+    for (const c of eff) {
+      if (!stats[c.alliance]) stats[c.alliance]={members:0,constr:0,research:0,training:0,fc:0,shards:0};
+      stats[c.alliance].members++;
+      stats[c.alliance].constr   += c.constr;
+      stats[c.alliance].research += c.research;
+      stats[c.alliance].training += c.training;
+      stats[c.alliance].fc       += c.fc;
+      stats[c.alliance].shards   += c.shards||0;
+    }
+    const aoa = [['Alliance','Members','Construction SU','Research SU','Training SU','Total SU','Fire Crystals','FC Shards']];
+    const alliances = Object.keys(stats).sort((a,b)=>{
+      const ta=stats[a].constr+stats[a].research+stats[a].training;
+      const tb=stats[b].constr+stats[b].research+stats[b].training;
+      return tb-ta;
+    });
+    let totals = {members:0,constr:0,research:0,training:0,fc:0,shards:0};
+    alliances.forEach(a => {
+      const d=stats[a], total=d.constr+d.research+d.training;
+      aoa.push([a,d.members,d.constr,Math.round(d.research),d.training,total,d.fc,d.shards]);
+      for (const k in totals) totals[k]+=d[k]||0;
+    });
+    aoa.push([]);
+    aoa.push(['TOTAL',totals.members,totals.constr,Math.round(totals.research),totals.training,
+      totals.constr+totals.research+totals.training,totals.fc,totals.shards]);
+    XLSX.utils.book_append_sheet(wb, S(aoa), 'Alliance Summary');
+  }
+
+  // ── Output Messages tab ──
+  const dayLabels = {day1:'Day 1 - Construction',day2:'Day 2 - Research',day4moe:'Day 4 MOE - Training',day4vp:'Day 4 VP - Training'};
+  const msgAoa = [];
+  ['day1','day2','day4moe','day4vp'].forEach(key => {
+    const data = schedules[key];
+    if (!data||!data.length) return;
+    const dayLabel = dayLabels[key];
+    const byAlliance = {};
+    for (const c of data) {
+      if (!byAlliance[c.alliance]) byAlliance[c.alliance]=[];
+      byAlliance[c.alliance].push(c);
+    }
+    msgAoa.push([`── ${dayLabel} ──`]);
+    msgAoa.push([]);
+    Object.keys(byAlliance).sort().forEach(alliance => {
+      const chiefs = byAlliance[alliance];
+      const chunks = [];
+      for (let i=0;i<chiefs.length;i+=5) chunks.push(chiefs.slice(i,i+5));
+      chunks.forEach((chunk,ci) => {
+        const header = chunks.length>1 ? `${dayLabel}\n${alliance} [ ${ci+1}/${chunks.length} ]` : `${dayLabel}\n${alliance}`;
+        const lines = chunk.map(c=>`${c.name} - ${(c.assignment?.slot||'').replace(/UTC/gi,'').replace(/:/g,'').replace(/\s+/g,' ').trim()}`);
+        msgAoa.push([header + '\n' + lines.join('\n')]);
+        msgAoa.push([]);
+      });
+    });
+    msgAoa.push([]);
+  });
+  if (msgAoa.length) XLSX.utils.book_append_sheet(wb, S(msgAoa), 'Output Messages');
+
+  // ── Write file ──
+  XLSX.writeFile(wb, 'SVS_Schedule_Export.xlsx');
+  toast('✓ Exported SVS_Schedule_Export.xlsx');
+}
+
 </script>
 </body>
 </html>
