@@ -1399,10 +1399,11 @@ function syncFromSheet() {
       const rows = parseCSV(text);
       if (rows.length < 2) throw new Error('No data rows found');
       processRows(rows);
+      runAll();
       const stamp = new Date().toLocaleString();
       try { localStorage.setItem(SHEET_LAST_SYNC_KEY, stamp); } catch(e) {}
       setSyncStatus('✓ ' + chiefs.length + ' chiefs · ' + stamp, 'ok');
-      toast('✓ Synced ' + chiefs.length + ' chiefs from sheet');
+      toast('✓ Synced ' + chiefs.length + ' chiefs · all schedules generated');
     })
     .catch(err => {
       setSyncStatus('⚠ ' + err.message, 'err');
@@ -2139,10 +2140,27 @@ function setStatus(msg) {
   document.getElementById('status-dot').classList.add('active');
 }
 let toastT;
+let _suppressToasts = false;
 function toast(msg) {
+  if (_suppressToasts) return;
   const el=document.getElementById('toast');
   el.textContent=msg; el.classList.add('show');
   clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove('show'),3000);
+}
+
+// Run every schedule + summary in order. Day 4 internal order (MOE then VP)
+// is handled by runDay4(). Toasts suppressed; caller emits one summary toast.
+function runAll() {
+  if (!chiefs.length) { toast('⚠ Load data first'); return; }
+  _suppressToasts = true;
+  try {
+    runDay1();
+    runDay2();
+    runDay4();   // MOE then VP, in that order, by design
+    runSummary();
+  } finally {
+    _suppressToasts = false;
+  }
 }
 
 
