@@ -107,6 +107,55 @@
   .upload-zone strong { color: var(--accent); }
   .upload-zone .hint { font-size: 11px; color: var(--text3); margin-top: 3px; }
 
+  /* Sync zone */
+  .sync-zone { margin: 0 14px 10px; display: flex; flex-direction: column; gap: 6px; }
+  .sync-btn {
+    background: linear-gradient(135deg, rgba(79,142,247,0.15), rgba(123,92,247,0.10));
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 6px;
+    padding: 9px;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.05s;
+  }
+  .sync-btn:hover:not(:disabled) { background: linear-gradient(135deg, rgba(79,142,247,0.25), rgba(123,92,247,0.18)); }
+  .sync-btn:active:not(:disabled) { transform: translateY(1px); }
+  .sync-btn:disabled { opacity: 0.6; cursor: wait; }
+  .sync-status {
+    font-size: 10px;
+    color: var(--text3);
+    text-align: center;
+    font-family: 'Share Tech Mono', monospace;
+    letter-spacing: 0.5px;
+    min-height: 14px;
+  }
+  .sync-status.ok { color: var(--green); }
+  .sync-status.err { color: var(--red); }
+  .sync-divider {
+    margin: 4px 14px 10px;
+    text-align: center;
+    font-size: 10px;
+    color: var(--text3);
+    letter-spacing: 2px;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    position: relative;
+  }
+  .sync-divider::before, .sync-divider::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: calc(50% - 24px);
+    height: 1px;
+    background: var(--border);
+  }
+  .sync-divider::before { left: 0; }
+  .sync-divider::after { right: 0; }
+
   /* Run buttons */
   .run-btns { padding: 10px 14px; display: flex; flex-direction: column; gap: 5px; flex: 1; overflow-y: auto; }
   .run-section-label {
@@ -683,7 +732,7 @@
 <header>
   <div class="logo-mark">SVS</div>
   <div>
-    <h1>PREP SCHEDULER <span style="font-size:12px;font-weight:400;color:var(--text2);letter-spacing:0">v1.1</span></h1>
+    <h1>PREP SCHEDULER <span style="font-size:12px;font-weight:400;color:var(--text2);letter-spacing:0">v1.2</span></h1>
     <div class="sub">State vs State — Slot Assignment Tool</div>
   </div>
   <div class="header-right">
@@ -698,6 +747,13 @@
     <div class="sidebar-section">
       <div class="sidebar-label">Data Source</div>
     </div>
+    <div class="sync-zone">
+      <button class="sync-btn" id="sync-btn" onclick="syncFromSheet()">⟳ Sync from Sheet</button>
+      <div class="sync-status" id="sync-status"></div>
+    </div>
+
+    <div class="sync-divider">OR</div>
+
     <div class="upload-zone" id="upload-zone">
       <input type="file" id="file-input" accept=".xlsx,.xls,.csv">
       <div class="upload-icon">📂</div>
@@ -1253,6 +1309,116 @@ function loadFile(file) {
   reader.readAsArrayBuffer(file);
 }
 
+// ═══════════════════════════════════════════════════════════
+//  SYNC FROM GOOGLE SHEET
+// ═══════════════════════════════════════════════════════════
+// Hardcoded sheet — change this URL to point at a different sheet.
+// Accepts any Google Sheets URL (edit URL, share URL, with or without #gid=N).
+const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1ZvObCrK4QBP_n57uA1-UJNSmxQ9AIvrVYVJ5ikNhcSM/edit?gid=1221557253#gid=1221557253';
+const SHEET_LAST_SYNC_KEY = 'svs_last_sync_v1';
+
+// Parse a Google Sheets edit URL into a CSV-export URL via gviz/tq.
+// Accepts: full edit URLs, /d/{id}/edit, /d/{id}/edit#gid=NNN, or a bare sheet ID.
+// Returns: a URL that yields CSV when fetched.
+function buildSheetCsvUrl(input) {
+  if (!input) return null;
+  const s = input.trim();
+  // Bare ID (alphanumeric, dash, underscore — typically 44 chars)
+  if (/^[a-zA-Z0-9_-]{20,}$/.test(s)) {
+    return `https://docs.google.com/spreadsheets/d/${s}/gviz/tq?tqx=out:csv`;
+  }
+  // Extract ID from URL
+  const idMatch = s.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  if (!idMatch) return null;
+  const id = idMatch[1];
+  // Extract gid from #gid=N or &gid=N
+  const gidMatch = s.match(/[#&?]gid=([0-9]+)/);
+  const gid = gidMatch ? gidMatch[1] : null;
+  let url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv`;
+  if (gid) url += `&gid=${gid}`;
+  return url;
+}
+
+// Minimal RFC 4180 CSV parser. Handles quoted fields, escaped quotes, embedded
+// commas/newlines. Returns 2D array of strings.
+function parseCSV(text) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+  let i = 0;
+  // Strip BOM
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  while (i < text.length) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i+1] === '"') { field += '"'; i += 2; continue; }
+        inQuotes = false; i++; continue;
+      }
+      field += c; i++; continue;
+    }
+    if (c === '"') { inQuotes = true; i++; continue; }
+    if (c === ',') { row.push(field); field = ''; i++; continue; }
+    if (c === '\r') { i++; continue; } // normalise CRLF
+    if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; i++; continue; }
+    field += c; i++;
+  }
+  // Final field/row (no trailing newline)
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+function setSyncStatus(msg, kind) {
+  const el = document.getElementById('sync-status');
+  el.textContent = msg || '';
+  el.className = 'sync-status' + (kind ? ' ' + kind : '');
+}
+
+function syncFromSheet() {
+  const csvUrl = buildSheetCsvUrl(SHEET_URL);
+  if (!csvUrl) {
+    setSyncStatus('⚠ Sheet URL is misconfigured', 'err');
+    return;
+  }
+
+  const btn = document.getElementById('sync-btn');
+  btn.disabled = true;
+  setSyncStatus('Syncing…', '');
+
+  fetch(csvUrl, { redirect: 'follow' })
+    .then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    })
+    .then(text => {
+      // Google returns HTML if sheet isn't shareable — detect early
+      if (text.startsWith('<!DOCTYPE') || text.startsWith('<HTML') || text.startsWith('<html')) {
+        throw new Error('Sheet not public — check share settings');
+      }
+      const rows = parseCSV(text);
+      if (rows.length < 2) throw new Error('No data rows found');
+      processRows(rows);
+      const stamp = new Date().toLocaleString();
+      try { localStorage.setItem(SHEET_LAST_SYNC_KEY, stamp); } catch(e) {}
+      setSyncStatus('✓ ' + chiefs.length + ' chiefs · ' + stamp, 'ok');
+      toast('✓ Synced ' + chiefs.length + ' chiefs from sheet');
+    })
+    .catch(err => {
+      setSyncStatus('⚠ ' + err.message, 'err');
+      toast('⚠ Sync failed: ' + err.message);
+    })
+    .finally(() => { btn.disabled = false; });
+}
+
+// Restore last-sync timestamp display on load
+(function initSheetSync(){
+  try {
+    const last = localStorage.getItem(SHEET_LAST_SYNC_KEY);
+    if (last) setSyncStatus('Last sync: ' + last, '');
+  } catch(e) {}
+})();
+
 function processRows(rows) {
   const seen = {};
   for (let i=1;i<rows.length;i++) {
@@ -1260,7 +1426,13 @@ function processRows(rows) {
     if (!r[0]&&!r[3]) continue;
     const id = normId(r[3]);
     if (!id) continue;
-    const ts = typeof r[0]==='number' ? r[0] : 0;
+    // Timestamp: number (Excel serial) from XLSX, or string (e.g. "5/10/2026 12:34:56") from CSV
+    let ts = 0;
+    if (typeof r[0]==='number') ts = r[0];
+    else if (typeof r[0]==='string' && r[0].trim()) {
+      const parsed = Date.parse(r[0]);
+      if (!isNaN(parsed)) ts = parsed;
+    }
     if (!seen[id]||ts>seen[id].ts) seen[id]={ts,row:r};
   }
 
