@@ -6,6 +6,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.4] - 2026-05-10
+
+### Added
+- **Mobile layout** at viewport widths ≤600px:
+  - Sidebar stacks above the main content area instead of sitting beside it
+  - Day schedule tabs (Day 1, Day 2, Day 4 MOE, Day 4 VP), Leaderboards, and Alliance Summary top-10 render as stacked cards instead of horizontal tables
+  - Header subtitle and run-button sub-labels hidden to save vertical space
+  - Toolbars (search/filter rows above tables) stack vertically
+  - Output Messages grid collapses to a single column
+- Each schedule card highlights the assigned slot pill on its own line with a dashed divider, making "find my slot" a one-glance task on a phone.
+- **"Best viewed on desktop" notice** in the header on mobile (gold subtitle) directing users to the toggle button.
+- **Floating desktop-view toggle** (bottom-right corner, touch devices only). Tap ⛶ to render the page as if on a 1200px desktop monitor; the device scales it down to fit. Tap 📱 to return to the mobile card layout. Choice persists in localStorage (`svs_view_mode_v1`).
+
+### Changed
+- Raw Data table on mobile uses horizontal scroll (`min-width: 1100px`) rather than card layout, since the comparison-across-columns workflow doesn't translate well to cards. Coordinator-only view.
+
+### Notes
+- The desktop-view toggle uses the viewport meta tag, the same mechanism as the browser's built-in "request desktop site" option. It does not load a separate stylesheet or render path — same code, different layout assumptions.
+- The toggle button only appears on touch devices (`@media (pointer: coarse)`), not on laptops/desktops with a mouse, regardless of window width. This ensures users in desktop-view mode can still toggle back when the mobile media query no longer fires.
+- Card layout uses CSS-only transformation (`display: block` on table elements + `data-label` attributes for cell labels). No JS render branching — the same HTML works at both breakpoints.
+
+---
+
 ## [1.3] - 2026-05-10
 
 ### Removed
