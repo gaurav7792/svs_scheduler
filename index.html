@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" id="viewport-meta" content="width=device-width, initial-scale=1.0">
 <title>SVS Prep Scheduler</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;500;700&display=swap');
@@ -64,6 +64,37 @@
   }
   header h1 { font-family: 'Rajdhani', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: 1px; color: #fff; }
   header .sub { font-size: 11px; color: var(--text2); margin-top: 1px; }
+  header .sub-mobile {
+    font-size: 11px;
+    color: var(--gold);
+    margin-top: 1px;
+    display: none;  /* shown only on mobile via media query below */
+  }
+
+  /* Floating "request desktop view" toggle button.
+     Only shown on touch devices (phones/tablets) regardless of current
+     viewport width, so users in desktop-view mode can still toggle back. */
+  .view-toggle-btn {
+    display: none;
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    z-index: 300;
+    transition: transform 0.15s;
+  }
+  .view-toggle-btn:active { transform: scale(0.95); }
+  @media (pointer: coarse) {
+    .view-toggle-btn { display: flex; align-items: center; justify-content: center; }
+  }
   .header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
   .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text3); }
   .status-dot.active { background: var(--green); box-shadow: 0 0 6px var(--green); }
@@ -623,6 +654,154 @@
   .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text2); }
   .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
 
+  /* ═══════════════════════════════════════════════════════════
+     MOBILE — ≤600px portrait phones
+     Cards for schedules/leaderboards/summary. Raw Data keeps
+     horizontal scroll (coordinator-only, comparison view).
+     ═══════════════════════════════════════════════════════════ */
+  @media (max-width: 600px) {
+
+    /* Header compresses */
+    header { padding: 10px 14px; }
+    header h1 { font-size: 18px; }
+    header .sub { display: none; }
+    header .sub-mobile { display: block; }
+
+    /* Sidebar becomes top banner — Sync first, run buttons collapse below */
+    .app { flex-direction: column; height: auto; min-height: calc(100vh - 56px); }
+    aside {
+      width: 100%; height: auto;
+      border-right: none; border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .sidebar-section { padding: 10px 14px 4px; }
+    .sync-zone { margin: 0 14px 8px; }
+    .sync-divider { margin: 2px 14px 8px; }
+    .upload-zone { margin: 0 14px 10px; padding: 10px; }
+    .upload-zone p { font-size: 11px; }
+    .upload-zone .hint { display: none; }
+    .upload-icon { font-size: 16px; margin-bottom: 2px; }
+
+    /* Run buttons in a 2-col grid when on mobile */
+    .run-btns { padding: 6px 14px 14px; gap: 6px; overflow: visible; flex: none; }
+    .run-section-label { padding: 6px 0 2px; }
+    .run-btn { padding: 8px 10px; font-size: 12px; }
+    .run-btn .btn-sub { display: none; }
+
+    /* Main takes full width, scrolls vertically */
+    main { overflow: visible; flex: none; }
+    .panel { overflow: visible; }
+    .panel.active { min-height: 50vh; }
+
+    /* Tabs already overflow-scroll; tighten padding */
+    .tabs { padding: 0 10px; }
+    .tab { padding: 11px 10px; font-size: 12px; }
+
+    /* Toolbar (search/filter rows above tables) — stack vertically */
+    .toolbar, .lb-controls, .day-controls {
+      flex-direction: column; align-items: stretch; gap: 6px;
+    }
+
+    /* ── Cards: transform tables into stacked cards ── */
+    .mobile-card-table {
+      padding: 10px 12px; overflow: visible;
+    }
+    .mobile-card-table table,
+    .mobile-card-table thead,
+    .mobile-card-table tbody,
+    .mobile-card-table tr,
+    .mobile-card-table td {
+      display: block; width: 100%;
+    }
+    .mobile-card-table thead { display: none; }
+    .mobile-card-table tr {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+    }
+    .mobile-card-table tr.dimmed { opacity: 0.55; }
+    .mobile-card-table td {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 5px 0;
+      text-align: right;
+      border: 0 !important;
+      min-height: 22px;
+      max-width: none !important;  /* override the inline 160px ellipsis on name */
+      overflow: visible !important;
+      text-overflow: clip !important;
+      white-space: normal;
+    }
+    .mobile-card-table td::before {
+      content: attr(data-label);
+      color: var(--text3);
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      font-weight: 700;
+      margin-right: 10px;
+      flex-shrink: 0;
+    }
+    /* Cells with no data-label hide the prefix */
+    .mobile-card-table td[data-label=""]::before,
+    .mobile-card-table td:not([data-label])::before { display: none; }
+
+    /* Top of card: rank, alliance, name on one row.
+       Implement via a flex container at the tr level; the three header cells
+       sit inline, all subsequent cells flow normally below them. */
+    .mobile-card-table tr {
+      display: flex; flex-wrap: wrap;
+    }
+    .mobile-card-table td { flex: 0 0 100%; }  /* default: full-width row */
+    .mobile-card-table td.card-rank      { flex: 0 0 auto; padding: 0 8px 0 0; align-self: center; }
+    .mobile-card-table td.card-alliance  { flex: 0 0 auto; padding: 0 8px 0 0; align-self: center; }
+    .mobile-card-table td.card-name      {
+      flex: 1 1 auto; padding: 0;
+      font-weight: 600; color: var(--text); font-size: 14px;
+      align-self: center;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .mobile-card-table td.card-rank::before,
+    .mobile-card-table td.card-alliance::before,
+    .mobile-card-table td.card-name::before { display: none; }
+
+    /* Divider between the header trio and the rest of the card */
+    .mobile-card-table td.card-name {
+      border-bottom: 1px solid var(--border) !important;
+      padding-bottom: 8px;
+      margin-bottom: 6px;
+    }
+    /* The rank and alliance also need the bottom divider since they share the line */
+    .mobile-card-table td.card-rank,
+    .mobile-card-table td.card-alliance {
+      border-bottom: 1px solid var(--border) !important;
+      padding-bottom: 8px;
+      margin-bottom: 6px;
+    }
+
+    /* Slot pill: prominent, dashed top divider */
+    .mobile-card-table td.card-slot {
+      padding-top: 8px; margin-top: 4px;
+      border-top: 1px dashed var(--border) !important;
+    }
+    .mobile-card-table .slot-badge { font-size: 13px; padding: 4px 10px; }
+
+    /* Cutoff banner inside a card-table needs its own row reset */
+    .mobile-card-table tr td[colspan] { padding: 0; background: none; border: 0; }
+    .mobile-card-table .cutoff-banner { margin: 4px 0 12px; }
+
+    /* Raw Data sticks with horizontal scroll on mobile */
+    #raw-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    #raw-wrap table { min-width: 1100px; }
+
+    /* Timeline visualizations — fit narrower screens */
+    .timeline-row { font-size: 10px; }
+
+    /* Output messages — single column on mobile */
+    .output-layout { grid-template-columns: 1fr !important; }
+  }
+
 </style>
 </head>
 <body>
@@ -630,8 +809,9 @@
 <header>
   <div class="logo-mark">SVS</div>
   <div>
-    <h1>PREP SCHEDULER <span style="font-size:12px;font-weight:400;color:var(--text2);letter-spacing:0">v1.3</span></h1>
+    <h1>PREP SCHEDULER <span style="font-size:12px;font-weight:400;color:var(--text2);letter-spacing:0">v1.4</span></h1>
     <div class="sub">State vs State — Slot Assignment Tool</div>
+    <div class="sub-mobile">Best viewed on desktop · tap ⛶ for full layout</div>
   </div>
   <div class="header-right">
     <div class="status-dot" id="status-dot"></div>
@@ -851,7 +1031,7 @@
         </div>
         <span class="record-count" id="lb-count">—</span>
       </div>
-      <div class="table-wrap" id="lb-wrap">
+      <div class="table-wrap mobile-card-table" id="lb-wrap">
         <div class="empty-state">
           <div class="e-icon">🏆</div>
           <p>Load data to view leaderboards</p>
@@ -879,7 +1059,7 @@
         </select>
         <span class="record-count" id="c-day1">—</span>
       </div>
-      <div class="table-wrap" id="wrap-day1">
+      <div class="table-wrap mobile-card-table" id="wrap-day1">
         <div class="empty-state"><div class="e-icon">🏗️</div><p>Click "Run Day 1" to generate</p></div>
       </div>
     </div>
@@ -904,7 +1084,7 @@
         </select>
         <span class="record-count" id="c-day2">—</span>
       </div>
-      <div class="table-wrap" id="wrap-day2">
+      <div class="table-wrap mobile-card-table" id="wrap-day2">
         <div class="empty-state"><div class="e-icon">🔬</div><p>Click "Run Day 2" to generate</p></div>
       </div>
     </div>
@@ -929,7 +1109,7 @@
         </select>
         <span class="record-count" id="c-day4moe">—</span>
       </div>
-      <div class="table-wrap" id="wrap-day4moe">
+      <div class="table-wrap mobile-card-table" id="wrap-day4moe">
         <div class="empty-state"><div class="e-icon">⚔️</div><p>Click "Run Day 4" to generate</p></div>
       </div>
     </div>
@@ -954,7 +1134,7 @@
         </select>
         <span class="record-count" id="c-day4vp">—</span>
       </div>
-      <div class="table-wrap" id="wrap-day4vp">
+      <div class="table-wrap mobile-card-table" id="wrap-day4vp">
         <div class="empty-state"><div class="e-icon">⚔️</div><p>Click "Run Day 4" to generate</p></div>
       </div>
     </div>
@@ -987,6 +1167,8 @@
       </div>
     </div>
 
+
+<button class="view-toggle-btn" id="view-toggle-btn" onclick="toggleDesktopView()" title="Toggle desktop view"><span id="view-toggle-icon">⛶</span></button>
 
 <div id="toast"></div>
 
@@ -1615,16 +1797,16 @@ function renderSched(key) {
           ? '<span style="color:var(--green);font-weight:700">✓ Preferred</span>'
           : '<span style="color:var(--orange)">≈ Closest</span>';
       return `<tr>
-        <td><span class="rank-num ${i<10?'top10':'top48'}">${i+1}</span></td>
-        <td><span class="alliance-badge ${alCls(c.alliance)}">${esc(c.alliance)}</span></td>
-        <td style="text-align:left">${esc(c.name)}</td>
-        <td class="mono muted" style="font-size:11px">${c.id}</td>
-        <td class="muted">${esc(c.fcLevel)}</td>
-        <td class="num" ${key==='day2'?'style="color:var(--gold)"':''}>${key==='day2'?c.su.toLocaleString():c.su}</td>
-        ${key==='day2'?`<td>${effSuCell(c)}</td>`:''}
-        <td>${slotsVizCell(c[meta.slotsKey], a.slotIdx, a.preferred)}</td>
-        <td>${slotCell}</td>
-        <td>${matchCell}</td>
+        <td data-label="" class="card-rank"><span class="rank-num ${i<10?'top10':'top48'}">${i+1}</span></td>
+        <td data-label="Alliance" class="card-alliance"><span class="alliance-badge ${alCls(c.alliance)}">${esc(c.alliance)}</span></td>
+        <td data-label="Chief" class="card-name" style="text-align:left">${esc(c.name)}</td>
+        <td data-label="ID" class="mono muted" style="font-size:11px">${c.id}</td>
+        <td data-label="FC Lvl" class="muted">${esc(c.fcLevel)}</td>
+        <td data-label="${meta.suLabel}" class="num" ${key==='day2'?'style="color:var(--gold)"':''}>${key==='day2'?c.su.toLocaleString():c.su}</td>
+        ${key==='day2'?`<td data-label="Eff Res SU">${effSuCell(c)}</td>`:''}
+        <td data-label="Windows">${slotsVizCell(c[meta.slotsKey], a.slotIdx, a.preferred)}</td>
+        <td data-label="Slot" class="card-slot">${slotCell}</td>
+        <td data-label="Match">${matchCell}</td>
       </tr>`;
     }).join('')}
     </tbody>
@@ -1730,15 +1912,15 @@ function runSummary() {
 
   const top10Html = top10.map((c,i)=>`
     <tr>
-      <td><span class="rank-num ${i<3?'top10':'top48'}">${i+1}</span></td>
-      <td><span class="alliance-badge ${alCls(c.alliance)}">${esc(c.alliance)}</span></td>
-      <td style="text-align:left">${esc(c.name)}</td>
-      <td class="mono muted" style="font-size:11px">${c.id}</td>
-      <td class="muted">${esc(c.fcLevel)}</td>
-      <td class="num">${c.constr}</td>
-      <td class="num">${Math.round(c.research)}</td>
-      <td class="num">${c.training}</td>
-      <td class="num" style="color:var(--gold);font-weight:700">${c.totalSU}</td>
+      <td data-label="" class="card-rank"><span class="rank-num ${i<3?'top10':'top48'}">${i+1}</span></td>
+      <td data-label="Alliance" class="card-alliance"><span class="alliance-badge ${alCls(c.alliance)}">${esc(c.alliance)}</span></td>
+      <td data-label="Chief" class="card-name" style="text-align:left">${esc(c.name)}</td>
+      <td data-label="ID" class="mono muted" style="font-size:11px">${c.id}</td>
+      <td data-label="FC Lvl" class="muted">${esc(c.fcLevel)}</td>
+      <td data-label="Constr SU" class="num">${c.constr}</td>
+      <td data-label="Research SU" class="num">${Math.round(c.research)}</td>
+      <td data-label="Training SU" class="num">${c.training}</td>
+      <td data-label="Total SU" class="num" style="color:var(--gold);font-weight:700">${c.totalSU}</td>
     </tr>`).join('');
 
   document.getElementById('summary-layout').innerHTML = `
@@ -1754,7 +1936,7 @@ function runSummary() {
         <div class="legend-item"><div class="legend-dot" style="background:var(--accent2);border:1px solid #666"></div> 3rd chief</div>
       </div>
     </div>
-    <div class="summary-top10">
+    <div class="summary-top10 mobile-card-table">
       <div class="summary-section-header"><span class="sh-icon">🏆</span> Top 10 Chiefs by Total Speedups</div>
       <table>
         <thead><tr>
@@ -1797,19 +1979,19 @@ function renderLeaderboard() {
     const inTop = i<48;
     const isCutoff = i===47;
     return `<tr class="${inTop?'':'dimmed'}">
-      <td><span class="rank-num ${i<10?'top10':inTop?'top48':''}">${i+1}</span></td>
-      <td><span class="alliance-badge ${alCls(c.alliance)}">${esc(c.alliance)}</span></td>
-      <td style="text-align:left">${esc(c.name)}</td>
-      <td class="mono muted" style="font-size:11px">${c.id}</td>
-      <td class="muted">${esc(c.fcLevel)}</td>
-      <td class="num" ${day==='day2'?'style="color:var(--gold)"':''}>${day==='day2'?c[suKey].toLocaleString():c[suKey]}</td>
-      ${day==='day2'?`<td>${effSuCell(c)}</td>
-        <td class="num">${c.research}</td>
-        <td class="num">${c.fc}</td>
-        <td class="num">${c.shards||0}</td>
-        <td class="num" ${c.shardsConverted?'style="color:var(--gold)"':''}>${Math.round(c.effShards)||0}${c.shardsConverted?' ✦':''}</td>
-        <td class="num">${c.steel||0}</td>`:''}
-      <td>${inTop
+      <td data-label="" class="card-rank"><span class="rank-num ${i<10?'top10':inTop?'top48':''}">${i+1}</span></td>
+      <td data-label="Alliance" class="card-alliance"><span class="alliance-badge ${alCls(c.alliance)}">${esc(c.alliance)}</span></td>
+      <td data-label="Chief" class="card-name" style="text-align:left">${esc(c.name)}</td>
+      <td data-label="ID" class="mono muted" style="font-size:11px">${c.id}</td>
+      <td data-label="FC Lvl" class="muted">${esc(c.fcLevel)}</td>
+      <td data-label="${suLabel}" class="num" ${day==='day2'?'style="color:var(--gold)"':''}>${day==='day2'?c[suKey].toLocaleString():c[suKey]}</td>
+      ${day==='day2'?`<td data-label="Eff Res SU">${effSuCell(c)}</td>
+        <td data-label="Raw SU" class="num">${c.research}</td>
+        <td data-label="FC" class="num">${c.fc}</td>
+        <td data-label="Shards" class="num">${c.shards||0}</td>
+        <td data-label="Eff Shards" class="num" ${c.shardsConverted?'style="color:var(--gold)"':''}>${Math.round(c.effShards)||0}${c.shardsConverted?' ✦':''}</td>
+        <td data-label="Steel (M)" class="num">${c.steel||0}</td>`:''}
+      <td data-label="Status">${inTop
         ? `<span style="color:var(--green);font-size:11px">✓ Scheduled</span>`
         : `<span style="color:var(--text3);font-size:11px">—</span>`}
       </td>
@@ -1930,6 +2112,34 @@ function toggleInfoPanel() {
   toggle.classList.toggle('open');
   body.classList.toggle('open');
 }
+
+// ── Desktop-view toggle (mobile only — see .view-toggle-btn CSS).
+// Rewrites the viewport meta tag so the browser lays the page out as if
+// it were 1200px wide, then the device scales it down to fit. This is
+// the same behavior as the "request desktop site" option in mobile browsers.
+const VIEW_MODE_KEY = 'svs_view_mode_v1';  // 'desktop' | (anything else = mobile)
+function toggleDesktopView() {
+  const meta = document.getElementById('viewport-meta');
+  const current = localStorage.getItem(VIEW_MODE_KEY);
+  if (current === 'desktop') {
+    meta.setAttribute('content', 'width=device-width, initial-scale=1.0');
+    try { localStorage.setItem(VIEW_MODE_KEY, 'mobile'); } catch(e) {}
+    document.getElementById('view-toggle-icon').textContent = '⛶';
+  } else {
+    meta.setAttribute('content', 'width=1200');
+    try { localStorage.setItem(VIEW_MODE_KEY, 'desktop'); } catch(e) {}
+    document.getElementById('view-toggle-icon').textContent = '📱';
+  }
+}
+// Apply persisted choice on load
+(function initViewMode(){
+  try {
+    if (localStorage.getItem(VIEW_MODE_KEY) === 'desktop') {
+      document.getElementById('viewport-meta').setAttribute('content', 'width=1200');
+      document.getElementById('view-toggle-icon').textContent = '📱';
+    }
+  } catch(e) {}
+})();
 function setStatus(msg) {
   document.getElementById('status-text').textContent=msg;
   document.getElementById('status-dot').classList.add('active');
