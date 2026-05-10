@@ -1419,6 +1419,40 @@ function syncFromSheet() {
   } catch(e) {}
 })();
 
+// Locale-safe parser for Google Sheets gviz CSV timestamp format.
+// Returns ms since epoch (treating the string as UTC), or null if unparseable.
+// We don't need absolute UTC correctness — only that comparisons are deterministic
+// across browsers/locales, which they are because Date.UTC is locale-independent.
+//
+// Accepted formats (the only ones Google Sheets gviz CSV emits for the Form
+// Timestamp column):
+//   'M/D/YYYY H:mm:ss'           24h, e.g. '5/10/2026 8:05:00'
+//   'M/D/YYYY h:mm:ss AM|PM'     12h, e.g. '5/10/2026 8:05:00 AM'
+//   'M/D/YYYY'                   date only (fallback)
+function parseSheetTimestamp(s) {
+  if (s == null) return null;
+  s = ('' + s).trim();
+  if (!s) return null;
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?(?:\s*(AM|PM|am|pm))?$/);
+  if (!m) return null;
+  const month = +m[1], day = +m[2], year = +m[3];
+  let hour = m[4] != null ? +m[4] : 0;
+  const minute = m[5] != null ? +m[5] : 0;
+  const second = m[6] != null ? +m[6] : 0;
+  const ampm = m[7] ? m[7].toUpperCase() : null;
+  if (month < 1 || month > 12) return null;
+  if (day < 1 || day > 31) return null;
+  if (minute > 59 || second > 59) return null;
+  if (ampm) {
+    if (hour < 1 || hour > 12) return null;
+    if (ampm === 'AM' && hour === 12) hour = 0;
+    else if (ampm === 'PM' && hour !== 12) hour += 12;
+  } else {
+    if (hour > 23) return null;
+  }
+  return Date.UTC(year, month - 1, day, hour, minute, second);
+}
+
 function processRows(rows) {
   const seen = {};
   for (let i=1;i<rows.length;i++) {
@@ -1426,12 +1460,15 @@ function processRows(rows) {
     if (!r[0]&&!r[3]) continue;
     const id = normId(r[3]);
     if (!id) continue;
-    // Timestamp: number (Excel serial) from XLSX, or string (e.g. "5/10/2026 12:34:56") from CSV
+    // Timestamp: number (Excel serial) from XLSX, or string ('M/D/YYYY H:mm:ss')
+    // from CSV. Excel serial and our UTC-ms output are not on the same scale, but
+    // each path is internally monotonic and comparisons only happen within a path,
+    // so dedup ordering is correct in both cases.
     let ts = 0;
     if (typeof r[0]==='number') ts = r[0];
-    else if (typeof r[0]==='string' && r[0].trim()) {
-      const parsed = Date.parse(r[0]);
-      if (!isNaN(parsed)) ts = parsed;
+    else if (typeof r[0]==='string') {
+      const parsed = parseSheetTimestamp(r[0]);
+      if (parsed != null) ts = parsed;
     }
     if (!seen[id]||ts>seen[id].ts) seen[id]={ts,row:r};
   }
