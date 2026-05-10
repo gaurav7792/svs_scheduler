@@ -1,6 +1,6 @@
 # SVS Prep Scheduler
 
-A browser-based scheduling tool for State vs State (SVS) events in Rise of Kingdoms. Automates slot assignment, leaderboards, alliance summaries, and output messages from Google Form response data.
+A browser-based scheduling tool for State vs State (SVS) events in Whiteout Survival. Automates slot assignment, leaderboards, alliance summaries, and output messages from Google Form response data.
 
 **Live tool:** [gaurav7792.github.io/svs_scheduler](https://gaurav7792.github.io/svs_scheduler/)
 
