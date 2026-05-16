@@ -1654,10 +1654,12 @@ function suSort(a, b, suKey) {
   if (b[suKey] !== a[suKey]) return b[suKey] - a[suKey];
   return fcScore(b.fcLevel) - fcScore(a.fcLevel);
 }
-function buildPool(suKey, excludeIds, limit) {
+function buildPool(suKey, excludeIds, limit, requireField) {
   const ex = new Set(excludeIds.map(String));
+  const check = requireField || suKey;  // field that must be > 0; defaults to rank metric
   return getEffectiveChiefs()
     .filter(c=>!ex.has(c.id))
+    .filter(c=>(c[check]||0) > 0)  // 0 in required field → no slot
     .map(c=>({...c, su:c[suKey]}))
     .sort((a,b)=>suSort(a,b,'su'))
     .slice(0, limit);
@@ -1681,7 +1683,7 @@ function runDay1() {
 
 function runDay2() {
   if (!chiefs.length) { toast('⚠ Load data first'); return; }
-  const pool = buildPool('resPoints', [], 48);
+  const pool = buildPool('resPoints', [], 48, 'research');
   const asgn = assignSlots(pool, 'slots2');
   pool.forEach(c=>{ c.assignment=asgn[c.id]||{slot:'',preferred:false,slotIdx:-1}; });
   pool.sort((a,b)=>(a.assignment.slotIdx??99)-(b.assignment.slotIdx??99));
