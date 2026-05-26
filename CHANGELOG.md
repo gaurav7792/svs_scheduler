@@ -6,6 +6,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.5] - 2026-05-26
+
+### Added
+- **Run button with live status bar.** The "Sync from Sheet" button is renamed to **Run**. A per-step status bar appears below it as each phase completes: Fetch sheet data → Import chiefs → Build schedules → Determinism check. Individual Day 1 / Day 2 / Day 4 / Alliance Summary buttons removed — Run executes everything in one click.
+- **Automatic determinism check.** Every Run invocation silently re-runs all four schedules 10× and confirms identical output across all runs. Result is shown in the status bar (✓ Done / ✗ Failed).
+- **Downloadable failure log.** If the determinism check detects divergence, a `.txt` log file is downloaded automatically. The log identifies which day failed, which rows diverged, whether the issue is a slot-assignment difference or a chief-ordering difference, the SU/FC/ID values of the conflicting chiefs, and a root-cause checklist.
+
+### Changed
+- **Chiefs with 0 day-relevant speedups are excluded from the schedule pool.** Day 1 requires `constr > 0`, Day 2 requires raw `research > 0` (not just Research Points — shards-only chiefs no longer take research slots), Day 4 requires `training > 0`. Schedules may contain fewer than 48 rows when the eligible pool is small. Leaderboards still show all chiefs.
+- **Scheduler is now deterministic by construction.** All sort comparators end in an explicit chief ID tiebreaker (ID ascending, numeric sort), so no two distinct chiefs can produce a `0` comparison result. `chiefs[]` is also sorted by ID immediately after construction in `processRows`, removing dependence on `for...in` iteration order.
+
+### Notes
+- The determinism check adds ~10 full scheduling passes per Run click. On typical alliance sizes (≤200 chiefs) this is imperceptible (<100 ms). On very large datasets it may take a fraction of a second.
+- The failure log distinguishes two root-cause classes: (1) same chief appearing in a different slot across runs (slot-assignment non-determinism in `closestAvail`/`assignSlots`), and (2) different chief appearing at the same rank position (sort-comparator non-determinism in `suSort` or `buildPool`).
+
+---
+
 ## [1.4] - 2026-05-10
 
 ### Added
