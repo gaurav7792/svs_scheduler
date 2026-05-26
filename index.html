@@ -873,6 +873,12 @@
           <span class="btn-sub">Totals + Top 10 chiefs</span>
         </span>
       </button>
+      <button class="run-btn secondary" onclick="runDeterminismCheck()">
+        <span class="btn-icon">🔬</span>
+        <span class="btn-text">Determinism Check
+          <span class="btn-sub">Verify reproducibility</span>
+        </span>
+      </button>
     </div>
 
     <div class="export-row">
@@ -1261,9 +1267,12 @@ function closestAvail(prefStr, used) {
 
 function assignSlots(pool, slotsKey) {
   const ranked = [...pool].sort((a,b)=>{
-    const pa=parseAvail(a[slotsKey]), pb=parseAvail(b[slotsKey]);
-    if (pa.length!==pb.length) return pa.length-pb.length;
-    return b.su-a.su;
+    const pa = parseAvail(a[slotsKey]), pb = parseAvail(b[slotsKey]);
+    if (pa.length !== pb.length) return pa.length - pb.length;
+    if (b.su !== a.su) return b.su - a.su;
+    const fcDiff = fcScore(b.fcLevel) - fcScore(a.fcLevel);
+    if (fcDiff !== 0) return fcDiff;
+    return a.id.localeCompare(b.id, 'en', {numeric: true});  // ID asc — older accounts win ties
   });
   const used={}, res={};
   for (const c of ranked) {
@@ -1501,6 +1510,7 @@ function processRows(rows) {
       slots3:    r[15] ? r[15].toString() : '',
     });
   }
+  chiefs.sort((a, b) => a.id.localeCompare(b.id, 'en', {numeric: true}));
 
   // Populate alliance filter
   const alliances = [...new Set(chiefs.map(c=>c.alliance))].sort();
@@ -1652,7 +1662,9 @@ function fcScore(fcLevel) {
 // ── Sort by SU desc, then FC level desc as tiebreaker
 function suSort(a, b, suKey) {
   if (b[suKey] !== a[suKey]) return b[suKey] - a[suKey];
-  return fcScore(b.fcLevel) - fcScore(a.fcLevel);
+  const fcDiff = fcScore(b.fcLevel) - fcScore(a.fcLevel);
+  if (fcDiff !== 0) return fcDiff;
+  return a.id.localeCompare(b.id, 'en', {numeric: true});  // ID asc — older accounts win ties
 }
 function buildPool(suKey, excludeIds, limit, requireField) {
   const ex = new Set(excludeIds.map(String));
@@ -1725,6 +1737,102 @@ function runDay4() {
   document.getElementById('output-day-select').value = 'day4moe';
   renderOutputMessages();
   toast('✓ Day 4 MOE + VP generated');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DETERMINISM CHECK
+// ═══════════════════════════════════════════════════════════
+function runDeterminismCheck() {
+  if (!chiefs.length) { toast('⚠ Load data first'); return; }
+
+  const N = 10;
+  const days = ['day1', 'day2', 'day4moe', 'day4vp'];
+
+  // Snapshot current state so we can restore it
+  const savedSchedules = schedules;
+
+  // Capture N runs
+  const runs = [];
+  for (let i = 0; i < N; i++) {
+    schedules = {};
+    runDay1();
+    runDay2();
+    runDay4();
+    runs.push({
+      day1:    serializeSchedule(schedules.day1),
+      day2:    serializeSchedule(schedules.day2),
+      day4moe: serializeSchedule(schedules.day4moe),
+      day4vp:  serializeSchedule(schedules.day4vp),
+    });
+  }
+
+  // Compare run 0 to every other run
+  const results = {};
+  for (const day of days) {
+    const ref = runs[0][day];
+    let firstDivergence = null;
+    for (let i = 1; i < N; i++) {
+      if (runs[i][day] !== ref) {
+        firstDivergence = { runIndex: i, diff: diffSchedules(ref, runs[i][day]) };
+        break;
+      }
+    }
+    results[day] = firstDivergence;
+  }
+
+  // Restore prior schedules and re-render so UI shows what user had
+  schedules = savedSchedules;
+  ['day1','day2','day4moe','day4vp'].forEach(k => {
+    if (schedules[k]) { renderTimeline(k); renderSched(k); }
+  });
+
+  reportDeterminism(N, results);
+}
+
+// Serialize a schedule as id|slotIdx|preferred for stable comparison.
+function serializeSchedule(sched) {
+  if (!sched) return '';
+  return sched.map(c =>
+    `${c.id}|${c.assignment?.slotIdx ?? -1}|${c.assignment?.preferred ? 1 : 0}`
+  ).join(';');
+}
+
+function diffSchedules(a, b) {
+  const aRows = a.split(';');
+  const bRows = b.split(';');
+  const diffs = [];
+  const len = Math.max(aRows.length, bRows.length);
+  for (let i = 0; i < len; i++) {
+    if (aRows[i] !== bRows[i]) {
+      diffs.push({ row: i, a: aRows[i] || '(missing)', b: bRows[i] || '(missing)' });
+      if (diffs.length >= 5) break;  // cap at 5 example divergences
+    }
+  }
+  return diffs;
+}
+
+function reportDeterminism(n, results) {
+  const allDeterministic = Object.values(results).every(r => r === null);
+  if (allDeterministic) {
+    toast(`✓ Deterministic across ${n} runs`);
+    console.log(`✓ Determinism check passed: ${n} runs, all identical across all 4 schedules.`);
+    return;
+  }
+
+  let msg = `⚠ Non-determinism detected across ${n} runs:\n\n`;
+  for (const [day, result] of Object.entries(results)) {
+    if (result === null) {
+      msg += `${day}: ✓ stable\n`;
+    } else {
+      msg += `${day}: diverged at run ${result.runIndex}\n`;
+      for (const d of result.diff) {
+        msg += `  row ${d.row}: ${d.a}  →  ${d.b}\n`;
+      }
+    }
+  }
+  console.warn(msg);
+  alert(msg);
+  toast('⚠ Non-determinism detected — see console');
 }
 
 // ═══════════════════════════════════════════════════════════
