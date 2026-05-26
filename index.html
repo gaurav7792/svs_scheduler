@@ -166,6 +166,11 @@
   }
   .sync-status.ok { color: var(--green); }
   .sync-status.err { color: var(--red); }
+  .run-steps { display: flex; flex-direction: column; gap: 3px; padding-top: 5px; }
+  .run-step { display: flex; justify-content: space-between; font-size: 10px; font-family: 'Share Tech Mono', monospace; color: var(--text2); letter-spacing: 0.3px; }
+  .run-step .s-ok  { color: var(--green); }
+  .run-step .s-err { color: var(--red); }
+  .run-step .s-run { color: var(--accent); }
   .sync-divider {
     margin: 4px 14px 10px;
     text-align: center;
@@ -826,8 +831,9 @@
       <div class="sidebar-label">Data Source</div>
     </div>
     <div class="sync-zone">
-      <button class="sync-btn" id="sync-btn" onclick="syncFromSheet()">⟳ Sync from Sheet</button>
+      <button class="sync-btn" id="sync-btn" onclick="syncFromSheet()">▶ Run</button>
       <div class="sync-status" id="sync-status"></div>
+      <div class="run-steps" id="run-steps"></div>
     </div>
 
     <div class="sync-divider">OR</div>
@@ -838,47 +844,6 @@
       <p><strong>Drop XLSX here</strong></p>
       <p>or click to browse</p>
       <div class="hint">Google Form response export</div>
-    </div>
-
-    <div class="run-btns">
-      <div class="run-section-label">Schedules</div>
-
-      <button class="run-btn primary" onclick="runDay1()">
-        <span class="btn-icon">🏗️</span>
-        <span class="btn-text">Run Day 1
-          <span class="btn-sub">Construction · VP</span>
-        </span>
-      </button>
-
-      <button class="run-btn primary" onclick="runDay2()">
-        <span class="btn-icon">🔬</span>
-        <span class="btn-text">Run Day 2
-          <span class="btn-sub">Research · VP</span>
-        </span>
-      </button>
-
-      <button class="run-btn primary" onclick="runDay4()">
-        <span class="btn-icon">⚔️</span>
-        <span class="btn-text">Run Day 4
-          <span class="btn-sub">Training · MOE + VP</span>
-        </span>
-      </button>
-
-      <div class="sidebar-divider"></div>
-      <div class="run-section-label">Summaries</div>
-
-      <button class="run-btn success" onclick="runSummary()">
-        <span class="btn-icon">📊</span>
-        <span class="btn-text">Alliance Summary
-          <span class="btn-sub">Totals + Top 10 chiefs</span>
-        </span>
-      </button>
-      <button class="run-btn secondary" onclick="runDeterminismCheck()">
-        <span class="btn-icon">🔬</span>
-        <span class="btn-text">Determinism Check
-          <span class="btn-sub">Verify reproducibility</span>
-        </span>
-      </button>
     </div>
 
     <div class="export-row">
@@ -1374,6 +1339,22 @@ function setSyncStatus(msg, kind) {
   el.className = 'sync-status' + (kind ? ' ' + kind : '');
 }
 
+function _setStep(id, label, status) {
+  const steps = document.getElementById('run-steps');
+  if (!steps) return;
+  let row = document.getElementById('run-step-' + id);
+  if (!row) {
+    row = document.createElement('div');
+    row.id = 'run-step-' + id;
+    row.className = 'run-step';
+    steps.appendChild(row);
+  }
+  const symbol = { ok: '✓', err: '✗', run: '⟳' }[status] || '—';
+  const word   = { ok: 'Done', err: 'Failed', run: 'Running' }[status] || 'Pending';
+  const cls    = { ok: 's-ok', err: 's-err', run: 's-run' }[status] || '';
+  row.innerHTML = `<span>${label}</span><span class="${cls}">${symbol} ${word}</span>`;
+}
+
 function syncFromSheet() {
   const csvUrl = buildSheetCsvUrl(SHEET_URL);
   if (!csvUrl) {
@@ -1383,7 +1364,11 @@ function syncFromSheet() {
 
   const btn = document.getElementById('sync-btn');
   btn.disabled = true;
-  setSyncStatus('Syncing…', '');
+  document.getElementById('run-steps').innerHTML = '';
+  setSyncStatus('', '');
+
+  let stepId = 'fetch', stepText = 'Fetch sheet data';
+  _setStep(stepId, stepText, 'run');
 
   fetch(csvUrl, { redirect: 'follow' })
     .then(r => {
@@ -1391,20 +1376,41 @@ function syncFromSheet() {
       return r.text();
     })
     .then(text => {
-      // Google returns HTML if sheet isn't shareable — detect early
       if (text.startsWith('<!DOCTYPE') || text.startsWith('<HTML') || text.startsWith('<html')) {
         throw new Error('Sheet not public — check share settings');
       }
+      _setStep(stepId, stepText, 'ok');
+
+      stepId = 'import'; stepText = 'Import chiefs';
+      _setStep(stepId, stepText, 'run');
       const rows = parseCSV(text);
       if (rows.length < 2) throw new Error('No data rows found');
       processRows(rows);
+      _setStep(stepId, chiefs.length + ' chiefs imported', 'ok');
+
+      stepId = 'schedules'; stepText = 'Build schedules';
+      _setStep(stepId, stepText, 'run');
       runAll();
-      const stamp = new Date().toLocaleString();
-      try { localStorage.setItem(SHEET_LAST_SYNC_KEY, stamp); } catch(e) {}
-      setSyncStatus('✓ ' + chiefs.length + ' chiefs · ' + stamp, 'ok');
-      toast('✓ Synced ' + chiefs.length + ' chiefs · all schedules generated');
+      _setStep(stepId, stepText, 'ok');
+
+      stepId = 'determinism'; stepText = 'Determinism check';
+      _setStep(stepId, stepText, 'run');
+      const det = _runDeterminismCheck();
+      if (det.allPassed) {
+        _setStep(stepId, stepText, 'ok');
+        const stamp = new Date().toLocaleString();
+        try { localStorage.setItem(SHEET_LAST_SYNC_KEY, stamp); } catch(e) {}
+        setSyncStatus('✓ ' + chiefs.length + ' chiefs · ' + stamp, 'ok');
+        toast('✓ Synced ' + chiefs.length + ' chiefs');
+      } else {
+        _setStep(stepId, stepText, 'err');
+        _downloadDeterminismLog(det);
+        setSyncStatus('⚠ Non-determinism detected', 'err');
+        toast('⚠ Non-determinism detected — log downloaded');
+      }
     })
     .catch(err => {
+      _setStep(stepId, stepText, 'err');
       setSyncStatus('⚠ ' + err.message, 'err');
       toast('⚠ Sync failed: ' + err.message);
     })
@@ -1740,24 +1746,17 @@ function runDay4() {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  DETERMINISM CHECK
+//  DETERMINISM CHECK  (internal — runs automatically via Run button)
 // ═══════════════════════════════════════════════════════════
-function runDeterminismCheck() {
-  if (!chiefs.length) { toast('⚠ Load data first'); return; }
-
+function _runDeterminismCheck() {
   const N = 10;
   const days = ['day1', 'day2', 'day4moe', 'day4vp'];
-
-  // Snapshot current state so we can restore it
   const savedSchedules = schedules;
 
-  // Capture N runs
   const runs = [];
   for (let i = 0; i < N; i++) {
     schedules = {};
-    runDay1();
-    runDay2();
-    runDay4();
+    runDay1(); runDay2(); runDay4();
     runs.push({
       day1:    serializeSchedule(schedules.day1),
       day2:    serializeSchedule(schedules.day2),
@@ -1766,7 +1765,6 @@ function runDeterminismCheck() {
     });
   }
 
-  // Compare run 0 to every other run
   const results = {};
   for (const day of days) {
     const ref = runs[0][day];
@@ -1780,13 +1778,12 @@ function runDeterminismCheck() {
     results[day] = firstDivergence;
   }
 
-  // Restore prior schedules and re-render so UI shows what user had
   schedules = savedSchedules;
   ['day1','day2','day4moe','day4vp'].forEach(k => {
     if (schedules[k]) { renderTimeline(k); renderSched(k); }
   });
 
-  reportDeterminism(N, results);
+  return { allPassed: Object.values(results).every(r => r === null), days: results, runs: N };
 }
 
 // Serialize a schedule as id|slotIdx|preferred for stable comparison.
@@ -1805,34 +1802,67 @@ function diffSchedules(a, b) {
   for (let i = 0; i < len; i++) {
     if (aRows[i] !== bRows[i]) {
       diffs.push({ row: i, a: aRows[i] || '(missing)', b: bRows[i] || '(missing)' });
-      if (diffs.length >= 5) break;  // cap at 5 example divergences
+      if (diffs.length >= 5) break;
     }
   }
   return diffs;
 }
 
-function reportDeterminism(n, results) {
-  const allDeterministic = Object.values(results).every(r => r === null);
-  if (allDeterministic) {
-    toast(`✓ Deterministic across ${n} runs`);
-    console.log(`✓ Determinism check passed: ${n} runs, all identical across all 4 schedules.`);
-    return;
-  }
+function _downloadDeterminismLog(result) {
+  const suKeyMap = { day1: 'constr', day2: 'resPoints', day4moe: 'training', day4vp: 'training' };
+  const chiefMap = Object.fromEntries(chiefs.map(c => [c.id, c]));
 
-  let msg = `⚠ Non-determinism detected across ${n} runs:\n\n`;
-  for (const [day, result] of Object.entries(results)) {
-    if (result === null) {
-      msg += `${day}: ✓ stable\n`;
-    } else {
-      msg += `${day}: diverged at run ${result.runIndex}\n`;
-      for (const d of result.diff) {
-        msg += `  row ${d.row}: ${d.a}  →  ${d.b}\n`;
+  const lines = [
+    'SVS Scheduler — Determinism Failure Report',
+    'Generated : ' + new Date().toISOString(),
+    'Runs      : ' + result.runs,
+    '',
+  ];
+
+  for (const [day, div] of Object.entries(result.days)) {
+    if (div === null) {
+      lines.push(day + ': ✓ stable');
+      continue;
+    }
+    lines.push(day + ': FAILED (first diverged at run ' + div.runIndex + ')');
+    lines.push('  Diverging rows (up to 5):');
+    const suKey = suKeyMap[day];
+    for (const d of div.diff) {
+      const [idA, slotA] = d.a.split('|');
+      const [idB, slotB] = d.b.split('|');
+      const cA = chiefMap[idA], cB = chiefMap[idB];
+      if (idA === idB) {
+        // Same chief, different slot — assignSlots non-determinism
+        lines.push(`  Row ${d.row}: chief ${idA} (${cA ? cA.name : '?'}) — slot changed`);
+        lines.push(`    Run 0   : slot ${slotA}`);
+        lines.push(`    Run ${div.runIndex}   : slot ${slotB}`);
+        lines.push(`    Hint    : closestAvail returned a different slot — check slot availability state`);
+      } else {
+        // Different chief at same position — ordering non-determinism
+        lines.push(`  Row ${d.row}: different chief at this position`);
+        lines.push(`    Run 0   : ${idA} (${cA ? cA.name : '?'}) SU=${cA ? (cA[suKey] ?? '?') : '?'} FC=${cA ? cA.fcLevel : '?'} slot=${slotA}`);
+        lines.push(`    Run ${div.runIndex}   : ${idB} (${cB ? cB.name : '?'}) SU=${cB ? (cB[suKey] ?? '?') : '?'} FC=${cB ? cB.fcLevel : '?'} slot=${slotB}`);
+        lines.push(`    Hint    : sort comparator returned 0 for these two chiefs — ID tiebreaker may be missing or broken`);
       }
     }
+    lines.push('');
   }
-  console.warn(msg);
-  alert(msg);
-  toast('⚠ Non-determinism detected — see console');
+
+  lines.push('--- Root cause checklist ---');
+  lines.push('1. Sort comparator returns 0 for two distinct chiefs (missing or broken tiebreaker)');
+  lines.push('2. Math.random() or Date-based value inside a sort comparator');
+  lines.push('3. for...in on an unsorted object feeding into schedule order');
+  lines.push('4. getEffectiveChiefs() returning chiefs in a different order than chiefs[]');
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'determinism-failure-' + new Date().toISOString().slice(0, 19).replace(/:/g, '-') + '.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ═══════════════════════════════════════════════════════════
