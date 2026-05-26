@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" id="viewport-meta" content="width=device-width, initial-scale=1.0">
 <title>SVS Prep Scheduler</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;500;700&display=swap');
@@ -64,6 +64,37 @@
   }
   header h1 { font-family: 'Rajdhani', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: 1px; color: #fff; }
   header .sub { font-size: 11px; color: var(--text2); margin-top: 1px; }
+  header .sub-mobile {
+    font-size: 11px;
+    color: var(--gold);
+    margin-top: 1px;
+    display: none;  /* shown only on mobile via media query below */
+  }
+
+  /* Floating "request desktop view" toggle button.
+     Only shown on touch devices (phones/tablets) regardless of current
+     viewport width, so users in desktop-view mode can still toggle back. */
+  .view-toggle-btn {
+    display: none;
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    z-index: 300;
+    transition: transform 0.15s;
+  }
+  .view-toggle-btn:active { transform: scale(0.95); }
+  @media (pointer: coarse) {
+    .view-toggle-btn { display: flex; align-items: center; justify-content: center; }
+  }
   .header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
   .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text3); }
   .status-dot.active { background: var(--green); box-shadow: 0 0 6px var(--green); }
@@ -106,6 +137,60 @@
   .upload-zone p { font-size: 12px; color: var(--text2); }
   .upload-zone strong { color: var(--accent); }
   .upload-zone .hint { font-size: 11px; color: var(--text3); margin-top: 3px; }
+
+  /* Sync zone */
+  .sync-zone { margin: 0 14px 10px; display: flex; flex-direction: column; gap: 6px; }
+  .sync-btn {
+    background: linear-gradient(135deg, rgba(79,142,247,0.15), rgba(123,92,247,0.10));
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 6px;
+    padding: 9px;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.05s;
+  }
+  .sync-btn:hover:not(:disabled) { background: linear-gradient(135deg, rgba(79,142,247,0.25), rgba(123,92,247,0.18)); }
+  .sync-btn:active:not(:disabled) { transform: translateY(1px); }
+  .sync-btn:disabled { opacity: 0.6; cursor: wait; }
+  .sync-status {
+    font-size: 10px;
+    color: var(--text3);
+    text-align: center;
+    font-family: 'Share Tech Mono', monospace;
+    letter-spacing: 0.5px;
+    min-height: 14px;
+  }
+  .sync-status.ok { color: var(--green); }
+  .sync-status.err { color: var(--red); }
+  .run-steps { display: flex; flex-direction: column; gap: 3px; padding-top: 5px; }
+  .run-step { display: flex; justify-content: space-between; font-size: 10px; font-family: 'Share Tech Mono', monospace; color: var(--text2); letter-spacing: 0.3px; }
+  .run-step .s-ok  { color: var(--green); }
+  .run-step .s-err { color: var(--red); }
+  .run-step .s-run { color: var(--accent); }
+  .sync-divider {
+    margin: 4px 14px 10px;
+    text-align: center;
+    font-size: 10px;
+    color: var(--text3);
+    letter-spacing: 2px;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    position: relative;
+  }
+  .sync-divider::before, .sync-divider::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: calc(50% - 24px);
+    height: 1px;
+    background: var(--border);
+  }
+  .sync-divider::before { left: 0; }
+  .sync-divider::after { right: 0; }
 
   /* Run buttons */
   .run-btns { padding: 10px 14px; display: flex; flex-direction: column; gap: 5px; flex: 1; overflow-y: auto; }
@@ -476,109 +561,7 @@
   }
   #toast.show { opacity: 1; }
 
-  /* ── EDIT PANEL ── */
-  .edit-overlay {
-    display: none; position: fixed; inset: 0; z-index: 200;
-    background: rgba(0,0,0,0.5); backdrop-filter: blur(2px);
-  }
-  .edit-overlay.open { display: block; }
-  .edit-panel {
-    position: fixed; top: 0; right: -420px; width: 420px; height: 100vh;
-    background: var(--bg2); border-left: 1px solid var(--border2);
-    z-index: 201; display: flex; flex-direction: column;
-    transition: right 0.25s ease;
-    box-shadow: -8px 0 32px rgba(0,0,0,0.4);
-  }
-  .edit-panel.open { right: 0; }
-  .ep-header {
-    padding: 18px 20px; border-bottom: 1px solid var(--border);
-    display: flex; align-items: flex-start; gap: 12px; flex-shrink: 0;
-  }
-  .ep-avatar {
-    width: 40px; height: 40px; border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 18px;
-    background: rgba(79,142,247,0.15); flex-shrink: 0;
-  }
-  .ep-title { flex: 1; }
-  .ep-name { font-family: 'Rajdhani', sans-serif; font-size: 18px; font-weight: 700; color: #fff; }
-  .ep-meta { font-size: 11px; color: var(--text2); margin-top: 2px; }
-  .ep-close {
-    background: none; border: none; color: var(--text2); cursor: pointer;
-    font-size: 20px; padding: 0 4px; line-height: 1;
-  }
-  .ep-close:hover { color: var(--text); }
-  .ep-body { flex: 1; overflow-y: auto; padding: 16px 20px; }
-  .ep-section-label {
-    font-size: 10px; font-weight: 700; letter-spacing: 2px; color: var(--text3);
-    text-transform: uppercase; margin-bottom: 10px;
-  }
-  .ep-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
-  .ep-field { display: flex; flex-direction: column; gap: 4px; }
-  .ep-field label { font-size: 11px; color: var(--text2); }
-  .ep-field-row { display: flex; align-items: center; gap: 6px; }
-  .ep-orig { font-size: 11px; color: var(--text3); font-family: 'Share Tech Mono', monospace; min-width: 36px; }
-  .ep-orig.changed { color: var(--text2); text-decoration: line-through; }
-  .ep-input {
-    flex: 1; background: var(--bg3); border: 1px solid var(--border2);
-    color: var(--text); border-radius: 6px; padding: 6px 8px;
-    font-size: 13px; font-family: 'Share Tech Mono', monospace; outline: none;
-    transition: border-color 0.15s;
-  }
-  .ep-input:focus { border-color: var(--accent); }
-  .ep-input.overridden { border-color: var(--gold); color: var(--gold); }
-  .ep-footer {
-    padding: 14px 20px; border-top: 1px solid var(--border);
-    display: flex; gap: 8px; flex-shrink: 0;
-  }
-  .ep-btn {
-    flex: 1; padding: 10px; border: none; border-radius: 8px;
-    font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 14px;
-    cursor: pointer; transition: filter 0.15s;
-  }
-  .ep-btn:active { transform: scale(0.98); }
-  .ep-btn.apply { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; }
-  .ep-btn.apply:hover { filter: brightness(1.1); }
-  .ep-btn.reset { background: var(--bg3); color: var(--text2); border: 1px solid var(--border2); }
-  .ep-btn.reset:hover { border-color: var(--red); color: var(--red); }
-
-  /* ── STALE WARNING ── */
-  .stale-banner {
-    display: none; padding: 8px 20px; flex-shrink: 0;
-    background: rgba(240,168,50,0.08);
-    border-bottom: 1px solid rgba(240,168,50,0.3);
-    font-size: 12px; color: var(--gold);
-    align-items: center; gap: 8px;
-  }
-  .stale-banner.show { display: flex; }
-
-  /* ── OVERRIDE MARKERS in tables ── */
-  .ov-val { color: var(--gold); font-family: 'Share Tech Mono', monospace; }
-  .ov-orig { color: var(--text3); font-size: 10px; text-decoration: line-through; margin-left: 4px; font-family: 'Share Tech Mono', monospace; }
-  .ov-icon { color: var(--gold); font-size: 11px; margin-left: 3px; cursor: pointer; }
-  tr.has-override { cursor: pointer; }
-  tr.has-override:hover td { background: rgba(240,168,50,0.04); }
-  tr:not(.has-override):hover td { cursor: pointer; background: rgba(79,142,247,0.04); }
-
-  /* ── OVERRIDES TAB ── */
-  .overrides-layout { flex: 1; overflow: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
-  .overrides-header {
-    background: rgba(240,168,50,0.08); border: 1px solid rgba(240,168,50,0.25);
-    border-radius: 10px; padding: 12px 16px;
-    font-size: 12px; color: var(--gold); line-height: 1.6;
-  }
-  .overrides-header strong { display: block; margin-bottom: 2px; font-size: 13px; }
-  .overrides-actions { display: flex; gap: 8px; }
-  .ov-action-btn {
-    padding: 7px 14px; background: var(--bg3); border: 1px solid var(--border2);
-    color: var(--text2); border-radius: 8px; font-size: 12px;
-    cursor: pointer; font-family: 'Exo 2', sans-serif;
-    display: flex; align-items: center; gap: 5px;
-  }
-  .ov-action-btn:hover { border-color: var(--accent); color: var(--accent); }
-
-
-
+  tr:hover td { background: rgba(79,142,247,0.04); }
 
   /* ── OUTPUT MESSAGES ── */
   .output-controls {
@@ -676,6 +659,154 @@
   .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text2); }
   .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
 
+  /* ═══════════════════════════════════════════════════════════
+     MOBILE — ≤600px portrait phones
+     Cards for schedules/leaderboards/summary. Raw Data keeps
+     horizontal scroll (coordinator-only, comparison view).
+     ═══════════════════════════════════════════════════════════ */
+  @media (max-width: 600px) {
+
+    /* Header compresses */
+    header { padding: 10px 14px; }
+    header h1 { font-size: 18px; }
+    header .sub { display: none; }
+    header .sub-mobile { display: block; }
+
+    /* Sidebar becomes top banner — Sync first, run buttons collapse below */
+    .app { flex-direction: column; height: auto; min-height: calc(100vh - 56px); }
+    aside {
+      width: 100%; height: auto;
+      border-right: none; border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .sidebar-section { padding: 10px 14px 4px; }
+    .sync-zone { margin: 0 14px 8px; }
+    .sync-divider { margin: 2px 14px 8px; }
+    .upload-zone { margin: 0 14px 10px; padding: 10px; }
+    .upload-zone p { font-size: 11px; }
+    .upload-zone .hint { display: none; }
+    .upload-icon { font-size: 16px; margin-bottom: 2px; }
+
+    /* Run buttons in a 2-col grid when on mobile */
+    .run-btns { padding: 6px 14px 14px; gap: 6px; overflow: visible; flex: none; }
+    .run-section-label { padding: 6px 0 2px; }
+    .run-btn { padding: 8px 10px; font-size: 12px; }
+    .run-btn .btn-sub { display: none; }
+
+    /* Main takes full width, scrolls vertically */
+    main { overflow: visible; flex: none; }
+    .panel { overflow: visible; }
+    .panel.active { min-height: 50vh; }
+
+    /* Tabs already overflow-scroll; tighten padding */
+    .tabs { padding: 0 10px; }
+    .tab { padding: 11px 10px; font-size: 12px; }
+
+    /* Toolbar (search/filter rows above tables) — stack vertically */
+    .toolbar, .lb-controls, .day-controls {
+      flex-direction: column; align-items: stretch; gap: 6px;
+    }
+
+    /* ── Cards: transform tables into stacked cards ── */
+    .mobile-card-table {
+      padding: 10px 12px; overflow: visible;
+    }
+    .mobile-card-table table,
+    .mobile-card-table thead,
+    .mobile-card-table tbody,
+    .mobile-card-table tr,
+    .mobile-card-table td {
+      display: block; width: 100%;
+    }
+    .mobile-card-table thead { display: none; }
+    .mobile-card-table tr {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+    }
+    .mobile-card-table tr.dimmed { opacity: 0.55; }
+    .mobile-card-table td {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 5px 0;
+      text-align: right;
+      border: 0 !important;
+      min-height: 22px;
+      max-width: none !important;  /* override the inline 160px ellipsis on name */
+      overflow: visible !important;
+      text-overflow: clip !important;
+      white-space: normal;
+    }
+    .mobile-card-table td::before {
+      content: attr(data-label);
+      color: var(--text3);
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      font-weight: 700;
+      margin-right: 10px;
+      flex-shrink: 0;
+    }
+    /* Cells with no data-label hide the prefix */
+    .mobile-card-table td[data-label=""]::before,
+    .mobile-card-table td:not([data-label])::before { display: none; }
+
+    /* Top of card: rank, alliance, name on one row.
+       Implement via a flex container at the tr level; the three header cells
+       sit inline, all subsequent cells flow normally below them. */
+    .mobile-card-table tr {
+      display: flex; flex-wrap: wrap;
+    }
+    .mobile-card-table td { flex: 0 0 100%; }  /* default: full-width row */
+    .mobile-card-table td.card-rank      { flex: 0 0 auto; padding: 0 8px 0 0; align-self: center; }
+    .mobile-card-table td.card-alliance  { flex: 0 0 auto; padding: 0 8px 0 0; align-self: center; }
+    .mobile-card-table td.card-name      {
+      flex: 1 1 auto; padding: 0;
+      font-weight: 600; color: var(--text); font-size: 14px;
+      align-self: center;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .mobile-card-table td.card-rank::before,
+    .mobile-card-table td.card-alliance::before,
+    .mobile-card-table td.card-name::before { display: none; }
+
+    /* Divider between the header trio and the rest of the card */
+    .mobile-card-table td.card-name {
+      border-bottom: 1px solid var(--border) !important;
+      padding-bottom: 8px;
+      margin-bottom: 6px;
+    }
+    /* The rank and alliance also need the bottom divider since they share the line */
+    .mobile-card-table td.card-rank,
+    .mobile-card-table td.card-alliance {
+      border-bottom: 1px solid var(--border) !important;
+      padding-bottom: 8px;
+      margin-bottom: 6px;
+    }
+
+    /* Slot pill: prominent, dashed top divider */
+    .mobile-card-table td.card-slot {
+      padding-top: 8px; margin-top: 4px;
+      border-top: 1px dashed var(--border) !important;
+    }
+    .mobile-card-table .slot-badge { font-size: 13px; padding: 4px 10px; }
+
+    /* Cutoff banner inside a card-table needs its own row reset */
+    .mobile-card-table tr td[colspan] { padding: 0; background: none; border: 0; }
+    .mobile-card-table .cutoff-banner { margin: 4px 0 12px; }
+
+    /* Raw Data sticks with horizontal scroll on mobile */
+    #raw-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    #raw-wrap table { min-width: 1100px; }
+
+    /* Timeline visualizations — fit narrower screens */
+    .timeline-row { font-size: 10px; }
+
+    /* Output messages — single column on mobile */
+    .output-layout { grid-template-columns: 1fr !important; }
+  }
+
 </style>
 </head>
 <body>
@@ -683,8 +814,9 @@
 <header>
   <div class="logo-mark">SVS</div>
   <div>
-    <h1>PREP SCHEDULER <span style="font-size:12px;font-weight:400;color:var(--text2);letter-spacing:0">v1.1</span></h1>
+    <h1>PREP SCHEDULER <span style="font-size:12px;font-weight:400;color:var(--text2);letter-spacing:0">v1.4</span></h1>
     <div class="sub">State vs State — Slot Assignment Tool</div>
+    <div class="sub-mobile">Best viewed on desktop · tap ⛶ for full layout</div>
   </div>
   <div class="header-right">
     <div class="status-dot" id="status-dot"></div>
@@ -698,47 +830,20 @@
     <div class="sidebar-section">
       <div class="sidebar-label">Data Source</div>
     </div>
+    <div class="sync-zone">
+      <button class="sync-btn" id="sync-btn" onclick="syncFromSheet()">▶ Run</button>
+      <div class="sync-status" id="sync-status"></div>
+      <div class="run-steps" id="run-steps"></div>
+    </div>
+
+    <div class="sync-divider">OR</div>
+
     <div class="upload-zone" id="upload-zone">
       <input type="file" id="file-input" accept=".xlsx,.xls,.csv">
       <div class="upload-icon">📂</div>
       <p><strong>Drop XLSX here</strong></p>
       <p>or click to browse</p>
       <div class="hint">Google Form response export</div>
-    </div>
-
-    <div class="run-btns">
-      <div class="run-section-label">Schedules</div>
-
-      <button class="run-btn primary" onclick="runDay1()">
-        <span class="btn-icon">🏗️</span>
-        <span class="btn-text">Run Day 1
-          <span class="btn-sub">Construction · VP</span>
-        </span>
-      </button>
-
-      <button class="run-btn primary" onclick="runDay2()">
-        <span class="btn-icon">🔬</span>
-        <span class="btn-text">Run Day 2
-          <span class="btn-sub">Research · VP</span>
-        </span>
-      </button>
-
-      <button class="run-btn primary" onclick="runDay4()">
-        <span class="btn-icon">⚔️</span>
-        <span class="btn-text">Run Day 4
-          <span class="btn-sub">Training · MOE + VP</span>
-        </span>
-      </button>
-
-      <div class="sidebar-divider"></div>
-      <div class="run-section-label">Summaries</div>
-
-      <button class="run-btn success" onclick="runSummary()">
-        <span class="btn-icon">📊</span>
-        <span class="btn-text">Alliance Summary
-          <span class="btn-sub">Totals + Top 10 chiefs</span>
-        </span>
-      </button>
     </div>
 
     <div class="export-row">
@@ -774,7 +879,6 @@
       </div>
       <div class="tab" data-tab="lookup" onclick="switchTab('lookup')">🔍 Chief Lookup</div>
       <div class="tab" data-tab="output" onclick="switchTab('output')">📨 Output Messages</div>
-      <div class="tab" data-tab="overrides" onclick="switchTab('overrides')">✎ Overrides <span class="tab-badge" id="badge-ov">0</span></div>
     </div>
 
     <!-- GUIDE -->
@@ -847,8 +951,6 @@
 
               <div><span style="color:var(--text);font-weight:600">Slot Assignment</span><br>48 slots of 30 min across 24h UTC. Most time-constrained chiefs assigned first. If preferred windows are full, the closest available slot is used with midnight wrap-around.</div>
 
-              <div><span style="color:var(--text);font-weight:600">Overrides</span><br>Click any row in Raw Data to edit submitted values. All changes logged in the Overrides tab. Edited schedules show a warning banner until re-run.</div>
-
             </div>
           </div>
 
@@ -900,7 +1002,7 @@
         </div>
         <span class="record-count" id="lb-count">—</span>
       </div>
-      <div class="table-wrap" id="lb-wrap">
+      <div class="table-wrap mobile-card-table" id="lb-wrap">
         <div class="empty-state">
           <div class="e-icon">🏆</div>
           <p>Load data to view leaderboards</p>
@@ -910,7 +1012,6 @@
 
     <!-- DAY 1 -->
     <div class="panel" id="panel-day1">
-      <div class="stale-banner" id="stale-day1">⚠ Data was edited after this schedule was generated — re-run Day 1 to update.</div>
       <div class="timeline-wrap">
         <div class="timeline-label">Slot map — Day 1 Construction (blue = preferred · orange = closest available)</div>
         <div class="timeline" id="tl-day1"></div>
@@ -929,14 +1030,13 @@
         </select>
         <span class="record-count" id="c-day1">—</span>
       </div>
-      <div class="table-wrap" id="wrap-day1">
+      <div class="table-wrap mobile-card-table" id="wrap-day1">
         <div class="empty-state"><div class="e-icon">🏗️</div><p>Click "Run Day 1" to generate</p></div>
       </div>
     </div>
 
     <!-- DAY 2 -->
     <div class="panel" id="panel-day2">
-      <div class="stale-banner" id="stale-day2">⚠ Data was edited after this schedule was generated — re-run Day 2 to update.</div>
       <div class="timeline-wrap">
         <div class="timeline-label">Slot map — Day 2 Research (blue = preferred · orange = closest available)</div>
         <div class="timeline" id="tl-day2"></div>
@@ -955,14 +1055,13 @@
         </select>
         <span class="record-count" id="c-day2">—</span>
       </div>
-      <div class="table-wrap" id="wrap-day2">
+      <div class="table-wrap mobile-card-table" id="wrap-day2">
         <div class="empty-state"><div class="e-icon">🔬</div><p>Click "Run Day 2" to generate</p></div>
       </div>
     </div>
 
     <!-- DAY 4 MOE -->
     <div class="panel" id="panel-day4moe">
-      <div class="stale-banner" id="stale-day4moe">⚠ Data was edited after this schedule was generated — re-run Day 4 to update.</div>
       <div class="timeline-wrap">
         <div class="timeline-label">Slot map — Day 4 MOE · 30% training buff</div>
         <div class="timeline" id="tl-day4moe"></div>
@@ -981,14 +1080,13 @@
         </select>
         <span class="record-count" id="c-day4moe">—</span>
       </div>
-      <div class="table-wrap" id="wrap-day4moe">
+      <div class="table-wrap mobile-card-table" id="wrap-day4moe">
         <div class="empty-state"><div class="e-icon">⚔️</div><p>Click "Run Day 4" to generate</p></div>
       </div>
     </div>
 
     <!-- DAY 4 VP -->
     <div class="panel" id="panel-day4vp">
-      <div class="stale-banner" id="stale-day4vp">⚠ Data was edited after this schedule was generated — re-run Day 4 to update.</div>
       <div class="timeline-wrap">
         <div class="timeline-label">Slot map — Day 4 VP · 10% training buff</div>
         <div class="timeline" id="tl-day4vp"></div>
@@ -1007,7 +1105,7 @@
         </select>
         <span class="record-count" id="c-day4vp">—</span>
       </div>
-      <div class="table-wrap" id="wrap-day4vp">
+      <div class="table-wrap mobile-card-table" id="wrap-day4vp">
         <div class="empty-state"><div class="e-icon">⚔️</div><p>Click "Run Day 4" to generate</p></div>
       </div>
     </div>
@@ -1040,89 +1138,8 @@
       </div>
     </div>
 
-    <!-- OVERRIDES -->
-    <div class="panel" id="panel-overrides">
-      <div class="overrides-layout" id="overrides-layout">
-        <div class="overrides-header">
-          <strong>✎ Coordinator Data Overrides</strong>
-          These are manual adjustments to submitted form data. All changes are logged here for full transparency. Chiefs can see exactly what was changed and from what value.
-        </div>
-        <div class="overrides-actions">
-          <button class="ov-action-btn" onclick="exportOverrides()">⬇ Export Overrides (JSON)</button>
-          <button class="ov-action-btn" onclick="document.getElementById('ov-import-input').click()">⬆ Import Overrides (JSON)</button>
-          <input type="file" id="ov-import-input" accept=".json" style="display:none" onchange="importOverrides(this)">
-        </div>
-        <div id="overrides-table-wrap">
-          <div class="empty-state"><div class="e-icon">✎</div><p>No overrides yet — click any chief row in Raw Data to edit</p></div>
-        </div>
-      </div>
-    </div>
-  </main>
-</div>
 
-<!-- EDIT PANEL -->
-<div class="edit-overlay" id="edit-overlay" onclick="closeEditPanel()"></div>
-<div class="edit-panel" id="edit-panel">
-  <div class="ep-header">
-    <div class="ep-avatar" id="ep-avatar"></div>
-    <div class="ep-title">
-      <div class="ep-name" id="ep-name"></div>
-      <div class="ep-meta" id="ep-meta"></div>
-    </div>
-    <button class="ep-close" onclick="closeEditPanel()">✕</button>
-  </div>
-  <div class="ep-body">
-    <div class="ep-section-label">Edit submitted values</div>
-    <div class="ep-fields">
-      <div class="ep-field">
-        <label>Construction SU</label>
-        <div class="ep-field-row">
-          <span class="ep-orig" id="ep-orig-constr"></span>
-          <input class="ep-input" id="ep-constr" type="number" min="0">
-        </div>
-      </div>
-      <div class="ep-field">
-        <label>Research SU</label>
-        <div class="ep-field-row">
-          <span class="ep-orig" id="ep-orig-research"></span>
-          <input class="ep-input" id="ep-research" type="number" min="0">
-        </div>
-      </div>
-      <div class="ep-field">
-        <label>Training SU</label>
-        <div class="ep-field-row">
-          <span class="ep-orig" id="ep-orig-training"></span>
-          <input class="ep-input" id="ep-training" type="number" min="0">
-        </div>
-      </div>
-      <div class="ep-field">
-        <label>Fire Crystals</label>
-        <div class="ep-field-row">
-          <span class="ep-orig" id="ep-orig-fc"></span>
-          <input class="ep-input" id="ep-fc" type="number" min="0">
-        </div>
-      </div>
-      <div class="ep-field">
-        <label>FC Shards</label>
-        <div class="ep-field-row">
-          <span class="ep-orig" id="ep-orig-shards"></span>
-          <input class="ep-input" id="ep-shards" type="number" min="0">
-        </div>
-      </div>
-      <div class="ep-field">
-        <label>Steel (millions)</label>
-        <div class="ep-field-row">
-          <span class="ep-orig" id="ep-orig-steel"></span>
-          <input class="ep-input" id="ep-steel" type="number" min="0" step="0.1">
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="ep-footer">
-    <button class="ep-btn reset" onclick="resetChief()">Reset to Submitted</button>
-    <button class="ep-btn apply" onclick="applyOverride()">Apply Override</button>
-  </div>
-</div>
+<button class="view-toggle-btn" id="view-toggle-btn" onclick="toggleDesktopView()" title="Toggle desktop view"><span id="view-toggle-icon">⛶</span></button>
 
 <div id="toast"></div>
 
@@ -1215,9 +1232,12 @@ function closestAvail(prefStr, used) {
 
 function assignSlots(pool, slotsKey) {
   const ranked = [...pool].sort((a,b)=>{
-    const pa=parseAvail(a[slotsKey]), pb=parseAvail(b[slotsKey]);
-    if (pa.length!==pb.length) return pa.length-pb.length;
-    return b.su-a.su;
+    const pa = parseAvail(a[slotsKey]), pb = parseAvail(b[slotsKey]);
+    if (pa.length !== pb.length) return pa.length - pb.length;
+    if (b.su !== a.su) return b.su - a.su;
+    const fcDiff = fcScore(b.fcLevel) - fcScore(a.fcLevel);
+    if (fcDiff !== 0) return fcDiff;
+    return a.id.localeCompare(b.id, 'en', {numeric: true});  // ID asc — older accounts win ties
   });
   const used={}, res={};
   for (const c of ranked) {
@@ -1253,6 +1273,192 @@ function loadFile(file) {
   reader.readAsArrayBuffer(file);
 }
 
+// ═══════════════════════════════════════════════════════════
+//  SYNC FROM GOOGLE SHEET
+// ═══════════════════════════════════════════════════════════
+// Hardcoded sheet — change this URL to point at a different sheet.
+// Accepts any Google Sheets URL (edit URL, share URL, with or without #gid=N).
+const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1ZvObCrK4QBP_n57uA1-UJNSmxQ9AIvrVYVJ5ikNhcSM/edit?gid=1221557253#gid=1221557253';
+const SHEET_LAST_SYNC_KEY = 'svs_last_sync_v1';
+
+// Parse a Google Sheets edit URL into a CSV-export URL via gviz/tq.
+// Accepts: full edit URLs, /d/{id}/edit, /d/{id}/edit#gid=NNN, or a bare sheet ID.
+// Returns: a URL that yields CSV when fetched.
+function buildSheetCsvUrl(input) {
+  if (!input) return null;
+  const s = input.trim();
+  // Bare ID (alphanumeric, dash, underscore — typically 44 chars)
+  if (/^[a-zA-Z0-9_-]{20,}$/.test(s)) {
+    return `https://docs.google.com/spreadsheets/d/${s}/gviz/tq?tqx=out:csv`;
+  }
+  // Extract ID from URL
+  const idMatch = s.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  if (!idMatch) return null;
+  const id = idMatch[1];
+  // Extract gid from #gid=N or &gid=N
+  const gidMatch = s.match(/[#&?]gid=([0-9]+)/);
+  const gid = gidMatch ? gidMatch[1] : null;
+  let url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv`;
+  if (gid) url += `&gid=${gid}`;
+  return url;
+}
+
+// Minimal RFC 4180 CSV parser. Handles quoted fields, escaped quotes, embedded
+// commas/newlines. Returns 2D array of strings.
+function parseCSV(text) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+  let i = 0;
+  // Strip BOM
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  while (i < text.length) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i+1] === '"') { field += '"'; i += 2; continue; }
+        inQuotes = false; i++; continue;
+      }
+      field += c; i++; continue;
+    }
+    if (c === '"') { inQuotes = true; i++; continue; }
+    if (c === ',') { row.push(field); field = ''; i++; continue; }
+    if (c === '\r') { i++; continue; } // normalise CRLF
+    if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; i++; continue; }
+    field += c; i++;
+  }
+  // Final field/row (no trailing newline)
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+function setSyncStatus(msg, kind) {
+  const el = document.getElementById('sync-status');
+  el.textContent = msg || '';
+  el.className = 'sync-status' + (kind ? ' ' + kind : '');
+}
+
+function _setStep(id, label, status) {
+  const steps = document.getElementById('run-steps');
+  if (!steps) return;
+  let row = document.getElementById('run-step-' + id);
+  if (!row) {
+    row = document.createElement('div');
+    row.id = 'run-step-' + id;
+    row.className = 'run-step';
+    steps.appendChild(row);
+  }
+  const symbol = { ok: '✓', err: '✗', run: '⟳' }[status] || '—';
+  const word   = { ok: 'Done', err: 'Failed', run: 'Running' }[status] || 'Pending';
+  const cls    = { ok: 's-ok', err: 's-err', run: 's-run' }[status] || '';
+  row.innerHTML = `<span>${label}</span><span class="${cls}">${symbol} ${word}</span>`;
+}
+
+function syncFromSheet() {
+  const csvUrl = buildSheetCsvUrl(SHEET_URL);
+  if (!csvUrl) {
+    setSyncStatus('⚠ Sheet URL is misconfigured', 'err');
+    return;
+  }
+
+  const btn = document.getElementById('sync-btn');
+  btn.disabled = true;
+  document.getElementById('run-steps').innerHTML = '';
+  setSyncStatus('', '');
+
+  let stepId = 'fetch', stepText = 'Fetch sheet data';
+  _setStep(stepId, stepText, 'run');
+
+  fetch(csvUrl, { redirect: 'follow' })
+    .then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    })
+    .then(text => {
+      if (text.startsWith('<!DOCTYPE') || text.startsWith('<HTML') || text.startsWith('<html')) {
+        throw new Error('Sheet not public — check share settings');
+      }
+      _setStep(stepId, stepText, 'ok');
+
+      stepId = 'import'; stepText = 'Import chiefs';
+      _setStep(stepId, stepText, 'run');
+      const rows = parseCSV(text);
+      if (rows.length < 2) throw new Error('No data rows found');
+      processRows(rows);
+      _setStep(stepId, chiefs.length + ' chiefs imported', 'ok');
+
+      stepId = 'schedules'; stepText = 'Build schedules';
+      _setStep(stepId, stepText, 'run');
+      runAll();
+      _setStep(stepId, stepText, 'ok');
+
+      stepId = 'determinism'; stepText = 'Determinism check';
+      _setStep(stepId, stepText, 'run');
+      const det = _runDeterminismCheck();
+      if (det.allPassed) {
+        _setStep(stepId, stepText, 'ok');
+        const stamp = new Date().toLocaleString();
+        try { localStorage.setItem(SHEET_LAST_SYNC_KEY, stamp); } catch(e) {}
+        setSyncStatus('✓ ' + chiefs.length + ' chiefs · ' + stamp, 'ok');
+        toast('✓ Synced ' + chiefs.length + ' chiefs');
+      } else {
+        _setStep(stepId, stepText, 'err');
+        _downloadDeterminismLog(det);
+        setSyncStatus('⚠ Non-determinism detected', 'err');
+        toast('⚠ Non-determinism detected — log downloaded');
+      }
+    })
+    .catch(err => {
+      _setStep(stepId, stepText, 'err');
+      setSyncStatus('⚠ ' + err.message, 'err');
+      toast('⚠ Sync failed: ' + err.message);
+    })
+    .finally(() => { btn.disabled = false; });
+}
+
+// Restore last-sync timestamp display on load
+(function initSheetSync(){
+  try {
+    const last = localStorage.getItem(SHEET_LAST_SYNC_KEY);
+    if (last) setSyncStatus('Last sync: ' + last, '');
+  } catch(e) {}
+})();
+
+// Locale-safe parser for Google Sheets gviz CSV timestamp format.
+// Returns ms since epoch (treating the string as UTC), or null if unparseable.
+// We don't need absolute UTC correctness — only that comparisons are deterministic
+// across browsers/locales, which they are because Date.UTC is locale-independent.
+//
+// Accepted formats (the only ones Google Sheets gviz CSV emits for the Form
+// Timestamp column):
+//   'M/D/YYYY H:mm:ss'           24h, e.g. '5/10/2026 8:05:00'
+//   'M/D/YYYY h:mm:ss AM|PM'     12h, e.g. '5/10/2026 8:05:00 AM'
+//   'M/D/YYYY'                   date only (fallback)
+function parseSheetTimestamp(s) {
+  if (s == null) return null;
+  s = ('' + s).trim();
+  if (!s) return null;
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?(?:\s*(AM|PM|am|pm))?$/);
+  if (!m) return null;
+  const month = +m[1], day = +m[2], year = +m[3];
+  let hour = m[4] != null ? +m[4] : 0;
+  const minute = m[5] != null ? +m[5] : 0;
+  const second = m[6] != null ? +m[6] : 0;
+  const ampm = m[7] ? m[7].toUpperCase() : null;
+  if (month < 1 || month > 12) return null;
+  if (day < 1 || day > 31) return null;
+  if (minute > 59 || second > 59) return null;
+  if (ampm) {
+    if (hour < 1 || hour > 12) return null;
+    if (ampm === 'AM' && hour === 12) hour = 0;
+    else if (ampm === 'PM' && hour !== 12) hour += 12;
+  } else {
+    if (hour > 23) return null;
+  }
+  return Date.UTC(year, month - 1, day, hour, minute, second);
+}
+
 function processRows(rows) {
   const seen = {};
   for (let i=1;i<rows.length;i++) {
@@ -1260,7 +1466,16 @@ function processRows(rows) {
     if (!r[0]&&!r[3]) continue;
     const id = normId(r[3]);
     if (!id) continue;
-    const ts = typeof r[0]==='number' ? r[0] : 0;
+    // Timestamp: number (Excel serial) from XLSX, or string ('M/D/YYYY H:mm:ss')
+    // from CSV. Excel serial and our UTC-ms output are not on the same scale, but
+    // each path is internally monotonic and comparisons only happen within a path,
+    // so dedup ordering is correct in both cases.
+    let ts = 0;
+    if (typeof r[0]==='number') ts = r[0];
+    else if (typeof r[0]==='string') {
+      const parsed = parseSheetTimestamp(r[0]);
+      if (parsed != null) ts = parsed;
+    }
     if (!seen[id]||ts>seen[id].ts) seen[id]={ts,row:r};
   }
 
@@ -1301,6 +1516,7 @@ function processRows(rows) {
       slots3:    r[15] ? r[15].toString() : '',
     });
   }
+  chiefs.sort((a, b) => a.id.localeCompare(b.id, 'en', {numeric: true}));
 
   // Populate alliance filter
   const alliances = [...new Set(chiefs.map(c=>c.alliance))].sort();
@@ -1310,10 +1526,8 @@ function processRows(rows) {
 
   setStatus(chiefs.length+' chiefs loaded');
   document.getElementById('badge-raw').textContent = chiefs.length;
-  updateOverrideBadge();
   renderRaw();
   renderLeaderboard();
-  renderOverridesTab();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1342,14 +1556,8 @@ function renderRaw() {
     return `<th onclick="sortRaw('${key}')" title="${title}"${active}>${label} <span style="opacity:0.4">${arrow}</span></th>`;
   }
 
-  function ovCell(c, field) {
-    const orig = chiefs.find(x=>x.id===c.id);
-    const ov = overrides[c.id];
-    const val = c[field];
-    const origVal = orig?.[field];
-    const isOv = ov && ov[field] !== undefined && ov[field] !== origVal;
-    if (isOv) return `<span class="ov-val">${val}</span><span class="ov-orig">${origVal}</span>`;
-    return `<span class="num">${val}</span>`;
+  function numCell(c, field) {
+    return `<span class="num">${c[field]}</span>`;
   }
 
   const html = `<table>
@@ -1372,24 +1580,22 @@ function renderRaw() {
       <th class="no-sort">Preferred Windows</th>
     </tr></thead>
     <tbody>${data.map((c,i)=>{
-      const hasOv = !!overrides[c.id];
-      return `<tr class="${hasOv?'has-override':''}" onclick="openEditPanel('${c.id}')">
+      return `<tr>
         <td><span class="rank-num ${i<10?'top10':''}">${i+1}</span></td>
         <td><span class="alliance-badge ${alCls(c.alliance)}">${esc(c.alliance)}</span></td>
-        <td style="text-align:left;max-width:160px;overflow:hidden;text-overflow:ellipsis">
-          ${esc(c.name)}${hasOv?' <span class="ov-icon">\u270e</span>':''}</td>
+        <td style="text-align:left;max-width:160px;overflow:hidden;text-overflow:ellipsis">${esc(c.name)}</td>
         <td class="mono muted" style="font-size:11px">${c.id}</td>
         <td class="muted">${esc(c.fcLevel)}</td>
         <td class="muted" style="font-size:11px">${esc(c.acctType)}</td>
-        <td>${ovCell(c,'constr')}</td>
-        <td>${ovCell(c,'research')}</td>
+        <td>${numCell(c,'constr')}</td>
+        <td>${numCell(c,'research')}</td>
         <td>${effSuCell(c)}</td>
         <td class="num" style="color:var(--gold)">${c.resPoints.toLocaleString()}</td>
-        <td>${ovCell(c,'training')}</td>
-        <td>${ovCell(c,'fc')}</td>
-        <td>${ovCell(c,'shards')}</td>
+        <td>${numCell(c,'training')}</td>
+        <td>${numCell(c,'fc')}</td>
+        <td>${numCell(c,'shards')}</td>
         <td class="num" ${c.shardsConverted?'style="color:var(--gold)"':''}>${Math.round(c.effShards)||0}${c.shardsConverted?' \u2746':''}</td>
-        <td>${ovCell(c,'steel')}</td>
+        <td>${numCell(c,'steel')}</td>
         <td>${slotsVizCell(c.slots1, -1, false)}</td>
       </tr>`;
     }).join('')}
@@ -1462,12 +1668,16 @@ function fcScore(fcLevel) {
 // ── Sort by SU desc, then FC level desc as tiebreaker
 function suSort(a, b, suKey) {
   if (b[suKey] !== a[suKey]) return b[suKey] - a[suKey];
-  return fcScore(b.fcLevel) - fcScore(a.fcLevel);
+  const fcDiff = fcScore(b.fcLevel) - fcScore(a.fcLevel);
+  if (fcDiff !== 0) return fcDiff;
+  return a.id.localeCompare(b.id, 'en', {numeric: true});  // ID asc — older accounts win ties
 }
-function buildPool(suKey, excludeIds, limit) {
+function buildPool(suKey, excludeIds, limit, requireField) {
   const ex = new Set(excludeIds.map(String));
+  const check = requireField || suKey;  // field that must be > 0; defaults to rank metric
   return getEffectiveChiefs()
     .filter(c=>!ex.has(c.id))
+    .filter(c=>(c[check]||0) > 0)  // 0 in required field → no slot
     .map(c=>({...c, su:c[suKey]}))
     .sort((a,b)=>suSort(a,b,'su'))
     .slice(0, limit);
@@ -1480,7 +1690,6 @@ function runDay1() {
   pool.forEach(c=>{ c.assignment=asgn[c.id]||{slot:'',preferred:false,slotIdx:-1}; });
   pool.sort((a,b)=>(a.assignment.slotIdx??99)-(b.assignment.slotIdx??99));
   schedules.day1 = pool;
-  clearStale(['day1']);
   document.getElementById('badge-d1').textContent = pool.length;
   renderTimeline('day1');
   renderCutoff('day1', pool.length, chiefs.length, 'constr');
@@ -1492,12 +1701,11 @@ function runDay1() {
 
 function runDay2() {
   if (!chiefs.length) { toast('⚠ Load data first'); return; }
-  const pool = buildPool('resPoints', [], 48);
+  const pool = buildPool('resPoints', [], 48, 'research');
   const asgn = assignSlots(pool, 'slots2');
   pool.forEach(c=>{ c.assignment=asgn[c.id]||{slot:'',preferred:false,slotIdx:-1}; });
   pool.sort((a,b)=>(a.assignment.slotIdx??99)-(b.assignment.slotIdx??99));
   schedules.day2 = pool;
-  clearStale(['day2']);
   document.getElementById('badge-d2').textContent = pool.length;
   renderTimeline('day2');
   renderCutoff('day2', pool.length, chiefs.length, 'resPoints');
@@ -1523,7 +1731,6 @@ function runDay4() {
   vpPool.forEach(c=>{ c.assignment=vpAsgn[c.id]||{slot:'',preferred:false,slotIdx:-1}; });
   vpPool.sort((a,b)=>(a.assignment.slotIdx??99)-(b.assignment.slotIdx??99));
   schedules.day4vp = vpPool;
-  clearStale(['day4moe','day4vp']);
   document.getElementById('badge-d4m').textContent = moePool.length;
   document.getElementById('badge-d4v').textContent = vpPool.length;
 
@@ -1536,6 +1743,126 @@ function runDay4() {
   document.getElementById('output-day-select').value = 'day4moe';
   renderOutputMessages();
   toast('✓ Day 4 MOE + VP generated');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DETERMINISM CHECK  (internal — runs automatically via Run button)
+// ═══════════════════════════════════════════════════════════
+function _runDeterminismCheck() {
+  const N = 10;
+  const days = ['day1', 'day2', 'day4moe', 'day4vp'];
+  const savedSchedules = schedules;
+
+  const runs = [];
+  for (let i = 0; i < N; i++) {
+    schedules = {};
+    runDay1(); runDay2(); runDay4();
+    runs.push({
+      day1:    serializeSchedule(schedules.day1),
+      day2:    serializeSchedule(schedules.day2),
+      day4moe: serializeSchedule(schedules.day4moe),
+      day4vp:  serializeSchedule(schedules.day4vp),
+    });
+  }
+
+  const results = {};
+  for (const day of days) {
+    const ref = runs[0][day];
+    let firstDivergence = null;
+    for (let i = 1; i < N; i++) {
+      if (runs[i][day] !== ref) {
+        firstDivergence = { runIndex: i, diff: diffSchedules(ref, runs[i][day]) };
+        break;
+      }
+    }
+    results[day] = firstDivergence;
+  }
+
+  schedules = savedSchedules;
+  ['day1','day2','day4moe','day4vp'].forEach(k => {
+    if (schedules[k]) { renderTimeline(k); renderSched(k); }
+  });
+
+  return { allPassed: Object.values(results).every(r => r === null), days: results, runs: N };
+}
+
+// Serialize a schedule as id|slotIdx|preferred for stable comparison.
+function serializeSchedule(sched) {
+  if (!sched) return '';
+  return sched.map(c =>
+    `${c.id}|${c.assignment?.slotIdx ?? -1}|${c.assignment?.preferred ? 1 : 0}`
+  ).join(';');
+}
+
+function diffSchedules(a, b) {
+  const aRows = a.split(';');
+  const bRows = b.split(';');
+  const diffs = [];
+  const len = Math.max(aRows.length, bRows.length);
+  for (let i = 0; i < len; i++) {
+    if (aRows[i] !== bRows[i]) {
+      diffs.push({ row: i, a: aRows[i] || '(missing)', b: bRows[i] || '(missing)' });
+      if (diffs.length >= 5) break;
+    }
+  }
+  return diffs;
+}
+
+function _downloadDeterminismLog(result) {
+  const suKeyMap = { day1: 'constr', day2: 'resPoints', day4moe: 'training', day4vp: 'training' };
+  const chiefMap = Object.fromEntries(chiefs.map(c => [c.id, c]));
+
+  const lines = [
+    'SVS Scheduler — Determinism Failure Report',
+    'Generated : ' + new Date().toISOString(),
+    'Runs      : ' + result.runs,
+    '',
+  ];
+
+  for (const [day, div] of Object.entries(result.days)) {
+    if (div === null) {
+      lines.push(day + ': ✓ stable');
+      continue;
+    }
+    lines.push(day + ': FAILED (first diverged at run ' + div.runIndex + ')');
+    lines.push('  Diverging rows (up to 5):');
+    const suKey = suKeyMap[day];
+    for (const d of div.diff) {
+      const [idA, slotA] = d.a.split('|');
+      const [idB, slotB] = d.b.split('|');
+      const cA = chiefMap[idA], cB = chiefMap[idB];
+      if (idA === idB) {
+        // Same chief, different slot — assignSlots non-determinism
+        lines.push(`  Row ${d.row}: chief ${idA} (${cA ? cA.name : '?'}) — slot changed`);
+        lines.push(`    Run 0   : slot ${slotA}`);
+        lines.push(`    Run ${div.runIndex}   : slot ${slotB}`);
+        lines.push(`    Hint    : closestAvail returned a different slot — check slot availability state`);
+      } else {
+        // Different chief at same position — ordering non-determinism
+        lines.push(`  Row ${d.row}: different chief at this position`);
+        lines.push(`    Run 0   : ${idA} (${cA ? cA.name : '?'}) SU=${cA ? (cA[suKey] ?? '?') : '?'} FC=${cA ? cA.fcLevel : '?'} slot=${slotA}`);
+        lines.push(`    Run ${div.runIndex}   : ${idB} (${cB ? cB.name : '?'}) SU=${cB ? (cB[suKey] ?? '?') : '?'} FC=${cB ? cB.fcLevel : '?'} slot=${slotB}`);
+        lines.push(`    Hint    : sort comparator returned 0 for these two chiefs — ID tiebreaker may be missing or broken`);
+      }
+    }
+    lines.push('');
+  }
+
+  lines.push('--- Root cause checklist ---');
+  lines.push('1. Sort comparator returns 0 for two distinct chiefs (missing or broken tiebreaker)');
+  lines.push('2. Math.random() or Date-based value inside a sort comparator');
+  lines.push('3. for...in on an unsorted object feeding into schedule order');
+  lines.push('4. getEffectiveChiefs() returning chiefs in a different order than chiefs[]');
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'determinism-failure-' + new Date().toISOString().slice(0, 19).replace(/:/g, '-') + '.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1610,16 +1937,16 @@ function renderSched(key) {
           ? '<span style="color:var(--green);font-weight:700">✓ Preferred</span>'
           : '<span style="color:var(--orange)">≈ Closest</span>';
       return `<tr>
-        <td><span class="rank-num ${i<10?'top10':'top48'}">${i+1}</span></td>
-        <td><span class="alliance-badge ${alCls(c.alliance)}">${esc(c.alliance)}</span></td>
-        <td style="text-align:left">${esc(c.name)}</td>
-        <td class="mono muted" style="font-size:11px">${c.id}</td>
-        <td class="muted">${esc(c.fcLevel)}</td>
-        <td class="num" ${key==='day2'?'style="color:var(--gold)"':''}>${key==='day2'?c.su.toLocaleString():c.su}</td>
-        ${key==='day2'?`<td>${effSuCell(c)}</td>`:''}
-        <td>${slotsVizCell(c[meta.slotsKey], a.slotIdx, a.preferred)}</td>
-        <td>${slotCell}</td>
-        <td>${matchCell}</td>
+        <td data-label="" class="card-rank"><span class="rank-num ${i<10?'top10':'top48'}">${i+1}</span></td>
+        <td data-label="Alliance" class="card-alliance"><span class="alliance-badge ${alCls(c.alliance)}">${esc(c.alliance)}</span></td>
+        <td data-label="Chief" class="card-name" style="text-align:left">${esc(c.name)}</td>
+        <td data-label="ID" class="mono muted" style="font-size:11px">${c.id}</td>
+        <td data-label="FC Lvl" class="muted">${esc(c.fcLevel)}</td>
+        <td data-label="${meta.suLabel}" class="num" ${key==='day2'?'style="color:var(--gold)"':''}>${key==='day2'?c.su.toLocaleString():c.su}</td>
+        ${key==='day2'?`<td data-label="Eff Res SU">${effSuCell(c)}</td>`:''}
+        <td data-label="Windows">${slotsVizCell(c[meta.slotsKey], a.slotIdx, a.preferred)}</td>
+        <td data-label="Slot" class="card-slot">${slotCell}</td>
+        <td data-label="Match">${matchCell}</td>
       </tr>`;
     }).join('')}
     </tbody>
@@ -1725,15 +2052,15 @@ function runSummary() {
 
   const top10Html = top10.map((c,i)=>`
     <tr>
-      <td><span class="rank-num ${i<3?'top10':'top48'}">${i+1}</span></td>
-      <td><span class="alliance-badge ${alCls(c.alliance)}">${esc(c.alliance)}</span></td>
-      <td style="text-align:left">${esc(c.name)}</td>
-      <td class="mono muted" style="font-size:11px">${c.id}</td>
-      <td class="muted">${esc(c.fcLevel)}</td>
-      <td class="num">${c.constr}</td>
-      <td class="num">${Math.round(c.research)}</td>
-      <td class="num">${c.training}</td>
-      <td class="num" style="color:var(--gold);font-weight:700">${c.totalSU}</td>
+      <td data-label="" class="card-rank"><span class="rank-num ${i<3?'top10':'top48'}">${i+1}</span></td>
+      <td data-label="Alliance" class="card-alliance"><span class="alliance-badge ${alCls(c.alliance)}">${esc(c.alliance)}</span></td>
+      <td data-label="Chief" class="card-name" style="text-align:left">${esc(c.name)}</td>
+      <td data-label="ID" class="mono muted" style="font-size:11px">${c.id}</td>
+      <td data-label="FC Lvl" class="muted">${esc(c.fcLevel)}</td>
+      <td data-label="Constr SU" class="num">${c.constr}</td>
+      <td data-label="Research SU" class="num">${Math.round(c.research)}</td>
+      <td data-label="Training SU" class="num">${c.training}</td>
+      <td data-label="Total SU" class="num" style="color:var(--gold);font-weight:700">${c.totalSU}</td>
     </tr>`).join('');
 
   document.getElementById('summary-layout').innerHTML = `
@@ -1749,7 +2076,7 @@ function runSummary() {
         <div class="legend-item"><div class="legend-dot" style="background:var(--accent2);border:1px solid #666"></div> 3rd chief</div>
       </div>
     </div>
-    <div class="summary-top10">
+    <div class="summary-top10 mobile-card-table">
       <div class="summary-section-header"><span class="sh-icon">🏆</span> Top 10 Chiefs by Total Speedups</div>
       <table>
         <thead><tr>
@@ -1792,19 +2119,19 @@ function renderLeaderboard() {
     const inTop = i<48;
     const isCutoff = i===47;
     return `<tr class="${inTop?'':'dimmed'}">
-      <td><span class="rank-num ${i<10?'top10':inTop?'top48':''}">${i+1}</span></td>
-      <td><span class="alliance-badge ${alCls(c.alliance)}">${esc(c.alliance)}</span></td>
-      <td style="text-align:left">${esc(c.name)}</td>
-      <td class="mono muted" style="font-size:11px">${c.id}</td>
-      <td class="muted">${esc(c.fcLevel)}</td>
-      <td class="num" ${day==='day2'?'style="color:var(--gold)"':''}>${day==='day2'?c[suKey].toLocaleString():c[suKey]}</td>
-      ${day==='day2'?`<td>${effSuCell(c)}</td>
-        <td class="num">${c.research}</td>
-        <td class="num">${c.fc}</td>
-        <td class="num">${c.shards||0}</td>
-        <td class="num" ${c.shardsConverted?'style="color:var(--gold)"':''}>${Math.round(c.effShards)||0}${c.shardsConverted?' ✦':''}</td>
-        <td class="num">${c.steel||0}</td>`:''}
-      <td>${inTop
+      <td data-label="" class="card-rank"><span class="rank-num ${i<10?'top10':inTop?'top48':''}">${i+1}</span></td>
+      <td data-label="Alliance" class="card-alliance"><span class="alliance-badge ${alCls(c.alliance)}">${esc(c.alliance)}</span></td>
+      <td data-label="Chief" class="card-name" style="text-align:left">${esc(c.name)}</td>
+      <td data-label="ID" class="mono muted" style="font-size:11px">${c.id}</td>
+      <td data-label="FC Lvl" class="muted">${esc(c.fcLevel)}</td>
+      <td data-label="${suLabel}" class="num" ${day==='day2'?'style="color:var(--gold)"':''}>${day==='day2'?c[suKey].toLocaleString():c[suKey]}</td>
+      ${day==='day2'?`<td data-label="Eff Res SU">${effSuCell(c)}</td>
+        <td data-label="Raw SU" class="num">${c.research}</td>
+        <td data-label="FC" class="num">${c.fc}</td>
+        <td data-label="Shards" class="num">${c.shards||0}</td>
+        <td data-label="Eff Shards" class="num" ${c.shardsConverted?'style="color:var(--gold)"':''}>${Math.round(c.effShards)||0}${c.shardsConverted?' ✦':''}</td>
+        <td data-label="Steel (M)" class="num">${c.steel||0}</td>`:''}
+      <td data-label="Status">${inTop
         ? `<span style="color:var(--green);font-size:11px">✓ Scheduled</span>`
         : `<span style="color:var(--text3);font-size:11px">—</span>`}
       </td>
@@ -1925,15 +2252,60 @@ function toggleInfoPanel() {
   toggle.classList.toggle('open');
   body.classList.toggle('open');
 }
+
+// ── Desktop-view toggle (mobile only — see .view-toggle-btn CSS).
+// Rewrites the viewport meta tag so the browser lays the page out as if
+// it were 1200px wide, then the device scales it down to fit. This is
+// the same behavior as the "request desktop site" option in mobile browsers.
+const VIEW_MODE_KEY = 'svs_view_mode_v1';  // 'desktop' | (anything else = mobile)
+function toggleDesktopView() {
+  const meta = document.getElementById('viewport-meta');
+  const current = localStorage.getItem(VIEW_MODE_KEY);
+  if (current === 'desktop') {
+    meta.setAttribute('content', 'width=device-width, initial-scale=1.0');
+    try { localStorage.setItem(VIEW_MODE_KEY, 'mobile'); } catch(e) {}
+    document.getElementById('view-toggle-icon').textContent = '⛶';
+  } else {
+    meta.setAttribute('content', 'width=1200');
+    try { localStorage.setItem(VIEW_MODE_KEY, 'desktop'); } catch(e) {}
+    document.getElementById('view-toggle-icon').textContent = '📱';
+  }
+}
+// Apply persisted choice on load
+(function initViewMode(){
+  try {
+    if (localStorage.getItem(VIEW_MODE_KEY) === 'desktop') {
+      document.getElementById('viewport-meta').setAttribute('content', 'width=1200');
+      document.getElementById('view-toggle-icon').textContent = '📱';
+    }
+  } catch(e) {}
+})();
 function setStatus(msg) {
   document.getElementById('status-text').textContent=msg;
   document.getElementById('status-dot').classList.add('active');
 }
 let toastT;
+let _suppressToasts = false;
 function toast(msg) {
+  if (_suppressToasts) return;
   const el=document.getElementById('toast');
   el.textContent=msg; el.classList.add('show');
   clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove('show'),3000);
+}
+
+// Run every schedule + summary in order. Day 4 internal order (MOE then VP)
+// is handled by runDay4(). Toasts suppressed; caller emits one summary toast.
+function runAll() {
+  if (!chiefs.length) { toast('⚠ Load data first'); return; }
+  _suppressToasts = true;
+  try {
+    runDay1();
+    runDay2();
+    runDay4();   // MOE then VP, in that order, by design
+    runSummary();
+  } finally {
+    _suppressToasts = false;
+  }
 }
 
 
@@ -2000,293 +2372,19 @@ function renderOutputMessages() {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  OVERRIDES SYSTEM
+//  CHIEF ACCESSORS
 // ═══════════════════════════════════════════════════════════
-let overrides = {};       // { chiefId: { field: newValue, ... } }
-let staleFlags = {};      // { day1: bool, day2: bool, day4moe: bool, day4vp: bool }
-let editingId = null;     // chief ID currently open in edit panel
+// Note: an earlier version of the app had a coordinator overrides system
+// (per-browser localStorage edits to chief data). It was removed in v1.3 —
+// the Google Sheet is now the single source of truth, edited directly there.
+// These accessors are kept as plain passthroughs so callers don't need to
+// be rewritten.
+function getChief(id) { return chiefs.find(x=>x.id===id) || null; }
+function getEffectiveChiefs() { return chiefs; }
 
-const OVERRIDE_FIELDS = ['constr','research','training','fc','shards','steel'];
-const LS_KEY = 'svs_overrides_v3';
+// One-time cleanup of legacy localStorage keys from the overrides era.
+try { localStorage.removeItem('svs_overrides_v3'); } catch(e) {}
 
-// ── Load overrides from localStorage on startup
-function loadOverridesFromStorage() {
-  try {
-    const stored = localStorage.getItem(LS_KEY);
-    if (stored) {
-      overrides = JSON.parse(stored);
-      updateOverrideBadge();
-    }
-  } catch(e) {}
-}
-
-function saveOverridesToStorage() {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(overrides)); } catch(e) {}
-}
-
-// ── Apply overrides to a chief object, return merged copy
-function applyOverridesToChief(c) {
-  const ov = overrides[c.id];
-  if (!ov) return c;
-  const merged = { ...c };
-  for (const f of OVERRIDE_FIELDS) {
-    if (ov[f] !== undefined) merged[f] = ov[f];
-  }
-  // Recompute derived fields
-  const steelCap = merged.steel > 0 ? (merged.steel*1e6)/33000 : 99999;
-  merged.resEff = Math.round(Math.min(merged.research, steelCap)*10)/10;
-  merged.effShards = merged.constr === 0 ? merged.shards + merged.fc * 1.3 : merged.shards;
-  merged.shardsConverted = merged.constr === 0 && merged.fc > 0;
-  merged.resPoints = Math.round(merged.effShards * 1000 + merged.resEff * 1440 * 30);
-  merged.steelCapDisplay = merged.steel > 0 ? Math.round(steelCap*10)/10 : null;
-  let bf = 'raw SU';
-  if (merged.steel > 0 && steelCap < merged.research) bf = 'steel';
-  merged.bindFactor = bf;
-  merged._overridden = true;
-  return merged;
-}
-
-// ── Get effective chief (with overrides applied)
-function getChief(id) {
-  const c = chiefs.find(x=>x.id===id);
-  if (!c) return null;
-  return applyOverridesToChief(c);
-}
-
-// ── Get all effective chiefs
-function getEffectiveChiefs() {
-  return chiefs.map(c => applyOverridesToChief(c));
-}
-
-// ── Open edit panel
-function openEditPanel(id) {
-  const c = chiefs.find(x=>x.id===id);
-  if (!c) return;
-  editingId = id;
-  const ov = overrides[id] || {};
-  const eff = applyOverridesToChief(c);
-
-  document.getElementById('ep-avatar').textContent = c.name.charAt(0).toUpperCase();
-  document.getElementById('ep-name').textContent = c.name;
-  document.getElementById('ep-meta').innerHTML =
-    `<span class="alliance-badge ${alCls(c.alliance)}">${esc(c.alliance)}</span> &nbsp;${esc(c.fcLevel)} · ${c.id}`;
-
-  // Populate fields
-  OVERRIDE_FIELDS.forEach(f => {
-    const origEl = document.getElementById('ep-orig-'+f);
-    const inputEl = document.getElementById('ep-'+f);
-    const origVal = c[f];
-    const ovVal = ov[f];
-    origEl.textContent = origVal;
-    origEl.className = 'ep-orig' + (ovVal !== undefined ? ' changed' : '');
-    inputEl.value = ovVal !== undefined ? ovVal : origVal;
-    inputEl.className = 'ep-input' + (ovVal !== undefined ? ' overridden' : '');
-    inputEl.oninput = () => {
-      const changed = parseFloat(inputEl.value) !== origVal;
-      inputEl.className = 'ep-input' + (changed ? ' overridden' : '');
-      origEl.className = 'ep-orig' + (changed ? ' changed' : '');
-    };
-  });
-
-  document.getElementById('edit-overlay').classList.add('open');
-  document.getElementById('edit-panel').classList.add('open');
-}
-
-function closeEditPanel() {
-  document.getElementById('edit-overlay').classList.remove('open');
-  document.getElementById('edit-panel').classList.remove('open');
-  editingId = null;
-}
-
-// Close on Escape
-document.addEventListener('keydown', e => { if (e.key==='Escape') closeEditPanel(); });
-
-// ── Apply override from panel
-function applyOverride() {
-  if (!editingId) return;
-  const c = chiefs.find(x=>x.id===editingId);
-  if (!c) return;
-
-  const ov = {};
-  let anyChange = false;
-  OVERRIDE_FIELDS.forEach(f => {
-    const inputEl = document.getElementById('ep-'+f);
-    const newVal = parseFloat(inputEl.value);
-    if (!isNaN(newVal) && newVal !== c[f]) {
-      ov[f] = newVal;
-      anyChange = true;
-    }
-  });
-
-  if (anyChange) {
-    overrides[editingId] = { ...(overrides[editingId]||{}), ...ov };
-  } else {
-    delete overrides[editingId];
-  }
-
-  saveOverridesToStorage();
-  updateOverrideBadge();
-  markStale();
-  renderRaw();
-  renderLeaderboard();
-  renderOverridesTab();
-  closeEditPanel();
-  toast('✓ Override applied for ' + c.name);
-}
-
-// ── Reset chief to submitted values
-function resetChief() {
-  if (!editingId) return;
-  const c = chiefs.find(x=>x.id===editingId);
-  delete overrides[editingId];
-  saveOverridesToStorage();
-  updateOverrideBadge();
-  markStale();
-  renderRaw();
-  renderLeaderboard();
-  renderOverridesTab();
-  closeEditPanel();
-  toast('✓ Reset ' + (c?.name||editingId) + ' to submitted values');
-}
-
-// ── Mark schedules stale after an edit
-function markStale() {
-  ['day1','day2','day4moe','day4vp'].forEach(k => {
-    if (schedules[k]&&schedules[k].length) {
-      staleFlags[k] = true;
-      const el = document.getElementById('stale-'+k);
-      if (el) el.classList.add('show');
-    }
-  });
-}
-
-// ── Clear stale flag when schedule is re-run
-function clearStale(keys) {
-  keys.forEach(k => {
-    staleFlags[k] = false;
-    const el = document.getElementById('stale-'+k);
-    if (el) el.classList.remove('show');
-  });
-}
-
-// ── Override badge count
-function updateOverrideBadge() {
-  const n = Object.keys(overrides).length;
-  document.getElementById('badge-ov').textContent = n;
-}
-
-// ── Render overrides tab
-function renderOverridesTab() {
-  const wrap = document.getElementById('overrides-table-wrap');
-  const entries = [];
-  for (const id in overrides) {
-    const c = chiefs.find(x=>x.id===id);
-    if (!c) continue;
-    const ov = overrides[id];
-    for (const f of OVERRIDE_FIELDS) {
-      if (ov[f] !== undefined && ov[f] !== c[f]) {
-        entries.push({ c, f, orig: c[f], newVal: ov[f] });
-      }
-    }
-  }
-
-  if (!entries.length) {
-    wrap.innerHTML = '<div class="empty-state"><div class="e-icon">✎</div><p>No overrides yet — click any chief row in Raw Data to edit</p></div>';
-    return;
-  }
-
-  const fieldLabels = { constr:'Construction SU', research:'Research SU', training:'Training SU', fc:'Fire Crystals', shards:'FC Shards', steel:'Steel (M)' };
-  const rows = entries.map(e => `
-    <tr>
-      <td><span class="alliance-badge ${alCls(e.c.alliance)}">${esc(e.c.alliance)}</span></td>
-      <td style="text-align:left">${esc(e.c.name)}</td>
-      <td class="mono muted" style="font-size:11px">${e.c.id}</td>
-      <td class="muted">${fieldLabels[e.f]||e.f}</td>
-      <td class="num muted" style="text-decoration:line-through">${e.orig}</td>
-      <td class="num" style="color:var(--gold)">${e.newVal}</td>
-      <td>
-        <button onclick="openEditPanel('${e.c.id}')" style="background:none;border:1px solid var(--border2);color:var(--text2);border-radius:5px;padding:3px 8px;cursor:pointer;font-size:11px">Edit</button>
-        <button onclick="removeOverrideField('${e.c.id}','${e.f}')" style="background:none;border:1px solid var(--border2);color:var(--text2);border-radius:5px;padding:3px 8px;cursor:pointer;font-size:11px;margin-left:4px">✕</button>
-      </td>
-    </tr>`).join('');
-
-  wrap.innerHTML = `<table>
-    <thead><tr>
-      <th class="no-sort">Alliance</th>
-      <th class="no-sort">Chief Name</th>
-      <th class="no-sort">ID</th>
-      <th class="no-sort">Field</th>
-      <th class="no-sort">Submitted</th>
-      <th class="no-sort">Override</th>
-      <th class="no-sort">Actions</th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-  </table>`;
-}
-
-// ── Remove a single field override
-function removeOverrideField(id, field) {
-  if (!overrides[id]) return;
-  delete overrides[id][field];
-  if (!Object.keys(overrides[id]).length) delete overrides[id];
-  saveOverridesToStorage();
-  updateOverrideBadge();
-  markStale();
-  renderRaw();
-  renderLeaderboard();
-  renderOverridesTab();
-  toast('✓ Override removed');
-}
-
-// ── Export overrides as JSON
-function exportOverrides() {
-  if (!Object.keys(overrides).length) { toast('⚠ No overrides to export'); return; }
-  // Annotate with chief names for readability
-  const annotated = {};
-  for (const id in overrides) {
-    const c = chiefs.find(x=>x.id===id);
-    annotated[id] = { _name: c?.name||'unknown', ...overrides[id] };
-  }
-  const blob = new Blob([JSON.stringify(annotated, null, 2)], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'svs_overrides.json'; a.click();
-  URL.revokeObjectURL(url);
-  toast('✓ Overrides exported');
-}
-
-// ── Import overrides from JSON
-function importOverrides(input) {
-  const file = input.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    try {
-      const data = JSON.parse(e.target.result);
-      let count = 0;
-      for (const id in data) {
-        const entry = { ...data[id] };
-        delete entry._name;
-        if (Object.keys(entry).length) {
-          overrides[id] = { ...(overrides[id]||{}), ...entry };
-          count++;
-        }
-      }
-      saveOverridesToStorage();
-      updateOverrideBadge();
-      markStale();
-      renderRaw();
-      renderLeaderboard();
-      renderOverridesTab();
-      toast('✓ Imported ' + count + ' override(s)');
-    } catch(err) { toast('⚠ Could not read file: ' + err.message); }
-  };
-  reader.readAsText(file);
-  input.value = '';
-}
-
-// ── Init on load
-loadOverridesFromStorage();
 // ═══════════════════════════════════════════════════════════
 //  EXPORT TO XLSX
 // ═══════════════════════════════════════════════════════════
