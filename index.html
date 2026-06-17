@@ -594,6 +594,15 @@
   }
   .output-textarea:focus { border-color: var(--accent); }
   .output-textarea::selection { background: rgba(79,142,247,0.3); }
+  .copy-btn {
+    margin-left: auto; padding: 2px 8px;
+    font-size: 11px; font-family: 'Share Tech Mono', monospace;
+    background: var(--bg3); border: 1px solid var(--border2);
+    border-radius: 5px; color: var(--text2); cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .copy-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .copy-btn.copied { background: #22c55e; color: #fff; border-color: #22c55e; }
 
   /* ── ALLIANCE CHART ── */
   .summary-chart-wrap {
@@ -2357,13 +2366,15 @@ function renderOutputMessages() {
       const text = chunkHeader + '\n' + lines.join('\n');
       const chunkLabelHtml = total > 1 ? `<span class="chunk-label">${ci+1} / ${total}</span>` : '';
 
+      const escapedText = esc(text);
       html += `<div class="output-block">
         <div class="output-block-header">
           <span class="alliance-badge ${alCls(alliance)}">${esc(alliance)}</span>
           ${chunkLabelHtml}
           <span style="font-size:11px;color:var(--text3)">${chunk.length} chief${chunk.length!==1?'s':''}</span>
+          <button class="copy-btn" onclick="(function(btn){navigator.clipboard.writeText(${JSON.stringify(text)}).then(()=>{btn.textContent='Copied!';btn.classList.add('copied');setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('copied')},1500)});})(this)">Copy</button>
         </div>
-        <textarea class="output-textarea" rows="${chunk.length + 2}" readonly onclick="this.select()">${esc(text)}</textarea>
+        <textarea class="output-textarea" rows="${chunk.length + 2}" readonly onclick="this.select()">${escapedText}</textarea>
       </div>`;
     });
   }
