@@ -2353,7 +2353,7 @@ function renderOutputMessages() {
       const chunkHeader = total > 1
         ? `${dayLabel}\n${alliance} [ ${ci+1}/${total} ]`
         : `${dayLabel}\n${alliance}`;
-      const lines = chunk.map(c => `${c.name} - ${formatSlotCompact(c.assignment?.slot||'')}`);
+      const lines = chunk.map(c => `${c.name} (${c.id}) - ${formatSlotCompact(c.assignment?.slot||'')}`);
       const text = chunkHeader + '\n' + lines.join('\n');
       const chunkLabelHtml = total > 1 ? `<span class="chunk-label">${ci+1} / ${total}</span>` : '';
 
@@ -2519,7 +2519,7 @@ function exportXLSX() {
       for (let i=0;i<chiefs.length;i+=5) chunks.push(chiefs.slice(i,i+5));
       chunks.forEach((chunk,ci) => {
         const header = chunks.length>1 ? `${dayLabel}\n${alliance} [ ${ci+1}/${chunks.length} ]` : `${dayLabel}\n${alliance}`;
-        const lines = chunk.map(c=>`${c.name} - ${(c.assignment?.slot||'').replace(/UTC/gi,'').replace(/:/g,'').replace(/\s+/g,' ').trim()}`);
+        const lines = chunk.map(c=>`${c.name} (${c.id}) - ${(c.assignment?.slot||'').replace(/UTC/gi,'').replace(/:/g,'').replace(/\s+/g,' ').trim()}`);
         msgAoa.push([header + '\n' + lines.join('\n')]);
         msgAoa.push([]);
       });
