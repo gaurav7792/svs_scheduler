@@ -2363,7 +2363,7 @@ function renderOutputMessages() {
   for (const alliance of Object.keys(byAlliance).sort()) {
     const chiefs = byAlliance[alliance];
     const chunks = [];
-    for (let i = 0; i < chiefs.length; i += 7) chunks.push(chiefs.slice(i, i+7));
+    for (let i = 0; i < chiefs.length; i += 5) chunks.push(chiefs.slice(i, i+5));
     const total = chunks.length;
 
     chunks.forEach((chunk, ci) => {
@@ -2534,7 +2534,7 @@ function exportXLSX() {
     Object.keys(byAlliance).sort().forEach(alliance => {
       const chiefs = byAlliance[alliance];
       const chunks = [];
-      for (let i=0;i<chiefs.length;i+=7) chunks.push(chiefs.slice(i,i+7));
+      for (let i=0;i<chiefs.length;i+=5) chunks.push(chiefs.slice(i,i+5));
       chunks.forEach((chunk,ci) => {
         const header = chunks.length>1 ? `${dayLabel}\n${alliance} [ ${ci+1}/${chunks.length} ]` : `${dayLabel}\n${alliance}`;
         const lines = chunk.flatMap(c=>[`${(c.assignment?.slot||'').replace(/UTC/gi,'').replace(/:/g,'').replace(/\s+/g,' ').trim()} > ${c.name}`,`[${c.id}]`]);
