@@ -2362,16 +2362,15 @@ function renderOutputMessages() {
   let html = '';
   for (const alliance of Object.keys(byAlliance).sort()) {
     const chiefs = byAlliance[alliance];
-    // Split into chunks of 5
     const chunks = [];
-    for (let i = 0; i < chiefs.length; i += 5) chunks.push(chiefs.slice(i, i+5));
+    for (let i = 0; i < chiefs.length; i += 7) chunks.push(chiefs.slice(i, i+7));
     const total = chunks.length;
 
     chunks.forEach((chunk, ci) => {
       const chunkHeader = total > 1
         ? `${dayLabel}\n${alliance} [ ${ci+1}/${total} ]`
         : `${dayLabel}\n${alliance}`;
-      const lines = chunk.map(c => `${c.name} (${c.id}) - ${formatSlotCompact(c.assignment?.slot||'')}`);
+      const lines = chunk.flatMap(c => [`${formatSlotCompact(c.assignment?.slot||'')} > ${c.name}`, `[${c.id}]`]);
       const text = chunkHeader + '\n' + lines.join('\n');
       const chunkLabelHtml = total > 1 ? `<span class="chunk-label">${ci+1} / ${total}</span>` : '';
 
@@ -2382,7 +2381,7 @@ function renderOutputMessages() {
           <span style="font-size:11px;color:var(--text3)">${chunk.length} chief${chunk.length!==1?'s':''}</span>
           <button class="copy-btn" onclick="copyOutputMsg(this)">Copy</button>
         </div>
-        <textarea class="output-textarea" rows="${chunk.length + 2}" readonly onclick="this.select()">${esc(text)}</textarea>
+        <textarea class="output-textarea" rows="${chunk.length * 2 + 2}" readonly onclick="this.select()">${esc(text)}</textarea>
       </div>`;
     });
   }
@@ -2535,10 +2534,10 @@ function exportXLSX() {
     Object.keys(byAlliance).sort().forEach(alliance => {
       const chiefs = byAlliance[alliance];
       const chunks = [];
-      for (let i=0;i<chiefs.length;i+=5) chunks.push(chiefs.slice(i,i+5));
+      for (let i=0;i<chiefs.length;i+=7) chunks.push(chiefs.slice(i,i+7));
       chunks.forEach((chunk,ci) => {
         const header = chunks.length>1 ? `${dayLabel}\n${alliance} [ ${ci+1}/${chunks.length} ]` : `${dayLabel}\n${alliance}`;
-        const lines = chunk.map(c=>`${c.name} (${c.id}) - ${(c.assignment?.slot||'').replace(/UTC/gi,'').replace(/:/g,'').replace(/\s+/g,' ').trim()}`);
+        const lines = chunk.flatMap(c=>[`${(c.assignment?.slot||'').replace(/UTC/gi,'').replace(/:/g,'').replace(/\s+/g,' ').trim()} > ${c.name}`,`[${c.id}]`]);
         msgAoa.push([header + '\n' + lines.join('\n')]);
         msgAoa.push([]);
       });
