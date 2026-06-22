@@ -1230,11 +1230,9 @@ function closestAvail(prefStr, used) {
   return bestIdx>=0 ? {idx:bestIdx, preferred:false} : null;
 }
 
-function assignSlots(pool, slotsKey) {
+function assignSlots(pool, slotsKey, primaryKey) {
   const ranked = [...pool].sort((a,b)=>{
-    const pa = parseAvail(a[slotsKey]), pb = parseAvail(b[slotsKey]);
-    if (pa.length !== pb.length) return pa.length - pb.length;
-    if (b.su !== a.su) return b.su - a.su;
+    if (b[primaryKey] !== a[primaryKey]) return b[primaryKey] - a[primaryKey];
     const fcDiff = fcScore(b.fcLevel) - fcScore(a.fcLevel);
     if (fcDiff !== 0) return fcDiff;
     return a.id.localeCompare(b.id, 'en', {numeric: true});  // ID asc — older accounts win ties
@@ -1686,7 +1684,7 @@ function buildPool(suKey, excludeIds, limit, requireField) {
 function runDay1() {
   if (!chiefs.length) { toast('⚠ Load data first'); return; }
   const pool = buildPool('constr', [], 48);
-  const asgn = assignSlots(pool, 'slots1');
+  const asgn = assignSlots(pool, 'slots1', 'su');
   pool.forEach(c=>{ c.assignment=asgn[c.id]||{slot:'',preferred:false,slotIdx:-1}; });
   pool.sort((a,b)=>(a.assignment.slotIdx??99)-(b.assignment.slotIdx??99));
   schedules.day1 = pool;
@@ -1702,7 +1700,7 @@ function runDay1() {
 function runDay2() {
   if (!chiefs.length) { toast('⚠ Load data first'); return; }
   const pool = buildPool('resPoints', [], 48, 'research');
-  const asgn = assignSlots(pool, 'slots2');
+  const asgn = assignSlots(pool, 'slots2', 'resPoints');
   pool.forEach(c=>{ c.assignment=asgn[c.id]||{slot:'',preferred:false,slotIdx:-1}; });
   pool.sort((a,b)=>(a.assignment.slotIdx??99)-(b.assignment.slotIdx??99));
   schedules.day2 = pool;
@@ -1719,7 +1717,7 @@ function runDay4() {
   if (!chiefs.length) { toast('⚠ Load data first'); return; }
   // MOE — top 48
   const moePool = buildPool('training', [], 48);
-  const moeAsgn = assignSlots(moePool, 'slots3');
+  const moeAsgn = assignSlots(moePool, 'slots3', 'su');
   moePool.forEach(c=>{ c.assignment=moeAsgn[c.id]||{slot:'',preferred:false,slotIdx:-1}; });
   moePool.sort((a,b)=>(a.assignment.slotIdx??99)-(b.assignment.slotIdx??99));
   schedules.day4moe = moePool;
@@ -1727,7 +1725,7 @@ function runDay4() {
   // VP — next 48, excluding MOE IDs
   const moeIds = moePool.map(c=>c.id);
   const vpPool = buildPool('training', moeIds, 48);
-  const vpAsgn = assignSlots(vpPool, 'slots3');
+  const vpAsgn = assignSlots(vpPool, 'slots3', 'su');
   vpPool.forEach(c=>{ c.assignment=vpAsgn[c.id]||{slot:'',preferred:false,slotIdx:-1}; });
   vpPool.sort((a,b)=>(a.assignment.slotIdx??99)-(b.assignment.slotIdx??99));
   schedules.day4vp = vpPool;
