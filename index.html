@@ -956,7 +956,7 @@
 
               <div><span style="color:var(--text);font-weight:600">Day 4 — Training</span><br>Top 48 by training SU → MOE (30% buff). Next 48 → VP (10% buff). MOE always runs first.</div>
 
-              <div><span style="color:var(--text);font-weight:600">Tiebreakers</span><br>Equal SU → higher FC level wins. FC12 &gt; FC11 &gt; ... &gt; FC1 &gt; 30 &gt; 29...</div>
+              <div><span style="color:var(--text);font-weight:600">Tiebreakers</span><br>Equal SU → older account wins (lower Chief ID).</div>
 
               <div><span style="color:var(--text);font-weight:600">Slot Assignment</span><br>48 slots of 30 min across 24h UTC. Chiefs are assigned in order of highest SU (Days 1 &amp; 4) or highest research points (Day 2). If preferred windows are full, the closest available slot is used with midnight wrap-around.</div>
 
@@ -1242,8 +1242,6 @@ function closestAvail(prefStr, used) {
 function assignSlots(pool, slotsKey, primaryKey) {
   const ranked = [...pool].sort((a,b)=>{
     if (b[primaryKey] !== a[primaryKey]) return b[primaryKey] - a[primaryKey];
-    const fcDiff = fcScore(b.fcLevel) - fcScore(a.fcLevel);
-    if (fcDiff !== 0) return fcDiff;
     return a.id.localeCompare(b.id, 'en', {numeric: true});  // ID asc — older accounts win ties
   });
   const used={}, res={};
@@ -1506,7 +1504,6 @@ function resolveColumns(rows) {
     name:     find(/chief\s*name/),
     alliance: find(/alliance/),
     id:       resolveChiefIdCol(rows),
-    fcLevel:  find(/furnace/),
     acctType: find(/main account|farm/),
     constr:   find(/speedups for construction/),
     fc:       find(/fire crystals.*construction/),
@@ -1566,7 +1563,6 @@ function processRows(rows) {
       id,
       name:      (at(r,'name')||'').toString().trim()||'(unknown)',
       alliance:  normaliseAlliance(at(r,'alliance')),
-      fcLevel:   (at(r,'fcLevel')||'').toString().trim(),
       acctType:  (at(r,'acctType')||'').toString().trim(),
       constr, fc, shards, effShards, shardsConverted, steel,
       research:  rawRes,
@@ -1630,7 +1626,6 @@ function renderRaw() {
       <th class="no-sort">Alliance</th>
       <th class="no-sort">Chief Name</th>
       <th class="no-sort">ID</th>
-      <th class="no-sort">FC Lvl</th>
       <th class="no-sort">Type</th>
       ${th('Constr SU','constr','Construction speedups')}
       ${th('Research SU','research','Raw research speedups')}
@@ -1649,7 +1644,6 @@ function renderRaw() {
         <td><span class="alliance-badge ${alCls(c.alliance)}">${esc(c.alliance)}</span></td>
         <td style="text-align:left;max-width:160px;overflow:hidden;text-overflow:ellipsis">${esc(c.name)}</td>
         <td class="mono muted" style="font-size:11px">${c.id}</td>
-        <td class="muted">${esc(c.fcLevel)}</td>
         <td class="muted" style="font-size:11px">${esc(c.acctType)}</td>
         <td>${numCell(c,'constr')}</td>
         <td>${numCell(c,'research')}</td>
@@ -1718,22 +1712,9 @@ function slotsVizCell(slotStr, assignedIdx, isPreferred) {
 //  SCHEDULE RUNNERS
 // ═══════════════════════════════════════════════════════════
 
-// ── FC Level sort score: FC12=1012, FC1=1001, 30=30, 27=27
-function fcScore(fcLevel) {
-  if (!fcLevel) return 0;
-  const s = fcLevel.toString().trim().toUpperCase();
-  const fcMatch = s.match(/^FC(\d+)$/);
-  if (fcMatch) return 1000 + parseInt(fcMatch[1]);
-  const numMatch = s.match(/^(\d+)$/);
-  if (numMatch) return parseInt(numMatch[1]);
-  return 0;
-}
-
-// ── Sort by SU desc, then FC level desc as tiebreaker
+// ── Sort by SU desc, then Chief ID asc as tiebreaker (older accounts win)
 function suSort(a, b, suKey) {
   if (b[suKey] !== a[suKey]) return b[suKey] - a[suKey];
-  const fcDiff = fcScore(b.fcLevel) - fcScore(a.fcLevel);
-  if (fcDiff !== 0) return fcDiff;
   return a.id.localeCompare(b.id, 'en', {numeric: true});  // ID asc — older accounts win ties
 }
 function buildPool(suKey, excludeIds, limit, requireField) {
@@ -1904,8 +1885,8 @@ function _downloadDeterminismLog(result) {
       } else {
         // Different chief at same position — ordering non-determinism
         lines.push(`  Row ${d.row}: different chief at this position`);
-        lines.push(`    Run 0   : ${idA} (${cA ? cA.name : '?'}) SU=${cA ? (cA[suKey] ?? '?') : '?'} FC=${cA ? cA.fcLevel : '?'} slot=${slotA}`);
-        lines.push(`    Run ${div.runIndex}   : ${idB} (${cB ? cB.name : '?'}) SU=${cB ? (cB[suKey] ?? '?') : '?'} FC=${cB ? cB.fcLevel : '?'} slot=${slotB}`);
+        lines.push(`    Run 0   : ${idA} (${cA ? cA.name : '?'}) SU=${cA ? (cA[suKey] ?? '?') : '?'} slot=${slotA}`);
+        lines.push(`    Run ${div.runIndex}   : ${idB} (${cB ? cB.name : '?'}) SU=${cB ? (cB[suKey] ?? '?') : '?'} slot=${slotB}`);
         lines.push(`    Hint    : sort comparator returned 0 for these two chiefs — ID tiebreaker may be missing or broken`);
       }
     }
@@ -1984,7 +1965,6 @@ function renderSched(key) {
       <th class="no-sort">Alliance</th>
       <th class="no-sort">Chief Name</th>
       <th class="no-sort">ID</th>
-      <th class="no-sort">FC Lvl</th>
       <th class="no-sort">${meta.suLabel}</th>
       ${key==='day2'?'<th class="no-sort">Eff Res SU</th>':''}
       <th class="no-sort">Preferred Windows</th>
@@ -2005,7 +1985,6 @@ function renderSched(key) {
         <td data-label="Alliance" class="card-alliance"><span class="alliance-badge ${alCls(c.alliance)}">${esc(c.alliance)}</span></td>
         <td data-label="Chief" class="card-name" style="text-align:left">${esc(c.name)}</td>
         <td data-label="ID" class="mono muted" style="font-size:11px">${c.id}</td>
-        <td data-label="FC Lvl" class="muted">${esc(c.fcLevel)}</td>
         <td data-label="${meta.suLabel}" class="num" ${key==='day2'?'style="color:var(--gold)"':''}>${key==='day2'?c.su.toLocaleString():c.su}</td>
         ${key==='day2'?`<td data-label="Eff Res SU">${effSuCell(c)}</td>`:''}
         <td data-label="Windows">${slotsVizCell(c[meta.slotsKey], a.slotIdx, a.preferred)}</td>
@@ -2120,7 +2099,6 @@ function runSummary() {
       <td data-label="Alliance" class="card-alliance"><span class="alliance-badge ${alCls(c.alliance)}">${esc(c.alliance)}</span></td>
       <td data-label="Chief" class="card-name" style="text-align:left">${esc(c.name)}</td>
       <td data-label="ID" class="mono muted" style="font-size:11px">${c.id}</td>
-      <td data-label="FC Lvl" class="muted">${esc(c.fcLevel)}</td>
       <td data-label="Constr SU" class="num">${c.constr}</td>
       <td data-label="Research SU" class="num">${Math.round(c.research)}</td>
       <td data-label="Training SU" class="num">${c.training}</td>
@@ -2146,7 +2124,7 @@ function runSummary() {
         <thead><tr>
           <th class="no-sort">#</th><th class="no-sort">Alliance</th>
           <th class="no-sort">Chief Name</th><th class="no-sort">ID</th>
-          <th class="no-sort">FC Lvl</th><th class="no-sort">Constr SU</th>
+          <th class="no-sort">Constr SU</th>
           <th class="no-sort">Research SU</th><th class="no-sort">Training SU</th>
           <th class="no-sort">Total SU</th>
         </tr></thead>
@@ -2187,7 +2165,6 @@ function renderLeaderboard() {
       <td data-label="Alliance" class="card-alliance"><span class="alliance-badge ${alCls(c.alliance)}">${esc(c.alliance)}</span></td>
       <td data-label="Chief" class="card-name" style="text-align:left">${esc(c.name)}</td>
       <td data-label="ID" class="mono muted" style="font-size:11px">${c.id}</td>
-      <td data-label="FC Lvl" class="muted">${esc(c.fcLevel)}</td>
       <td data-label="${suLabel}" class="num" ${day==='day2'?'style="color:var(--gold)"':''}>${day==='day2'?c[suKey].toLocaleString():c[suKey]}</td>
       ${day==='day2'?`<td data-label="Eff Res SU">${effSuCell(c)}</td>
         <td data-label="Raw SU" class="num">${c.research}</td>
@@ -2217,7 +2194,6 @@ function renderLeaderboard() {
       <th class="no-sort">Alliance</th>
       <th class="no-sort">Chief Name</th>
       <th class="no-sort">ID</th>
-      <th class="no-sort">FC Lvl</th>
       <th class="no-sort">${suLabel}</th>
       ${extraHeaders}
       <th class="no-sort">Slot</th>
@@ -2257,7 +2233,7 @@ function lookupChief() {
         <div class="cc-name">${esc(chief.name)}</div>
         <div class="cc-meta">
           <span class="alliance-badge ${alCls(chief.alliance)}">${esc(chief.alliance)}</span>
-          &nbsp;${esc(chief.fcLevel)} · <span class="mono" style="font-size:11px">${chief.id}</span> · ${esc(chief.acctType)}
+          &nbsp;<span class="mono" style="font-size:11px">${chief.id}</span> · ${esc(chief.acctType)}
         </div>
       </div>
     </div>
@@ -2474,12 +2450,12 @@ function exportXLSX() {
   // ── Raw Data tab ──
   if (chiefs.length) {
     const eff = getEffectiveChiefs();
-    const hdr = ['Name','ID','Alliance','FC Level','Account Type',
+    const hdr = ['Name','ID','Alliance','Account Type',
       'Constr SU','Research SU','Eff Res SU','Res Points','Training SU',
       'Fire Crystals','FC Shards','Eff Shards','Steel (M)',
       'Preferred Slots D1','Preferred Slots D2','Preferred Slots D4'];
     const rows = eff.map(c=>[
-      c.name, c.id, c.alliance, c.fcLevel, c.acctType,
+      c.name, c.id, c.alliance, c.acctType,
       c.constr, c.research, c.resEff, c.resPoints, c.training,
       c.fc, c.shards, Math.round(c.effShards)||0, c.steel||0,
       c.slots1||'', c.slots2||'', c.slots3||''
@@ -2502,14 +2478,14 @@ function exportXLSX() {
     const aoa = [];
 
     // Schedule header
-    aoa.push(['Alliance','Chief Name','Chief ID','FC Level', suLabel,
+    aoa.push(['Alliance','Chief Name','Chief ID', suLabel,
       ...(key==='day2' ? ['Eff Res SU'] : []),
       'Preferred Windows','Assigned Slot','Match']);
 
     data.forEach((c,i) => {
       const a = c.assignment||{};
       aoa.push([
-        c.alliance, c.name, c.id, c.fcLevel, c.su,
+        c.alliance, c.name, c.id, c.su,
         ...(key==='day2' ? [c.resEff] : []),
         c[key==='day1'?'slots1':key==='day2'?'slots2':'slots3']||'No preference',
         a.slot||'',
@@ -2524,7 +2500,7 @@ function exportXLSX() {
     // Leaderboard header
     const lbData = [...getEffectiveChiefs()].sort((a,b)=>suSort(a,b,lbSuKey));
     aoa.push(['— LEADERBOARD —']);
-    const lbHdr = ['Rank','Alliance','Chief Name','Chief ID','FC Level', lbSuLabel,
+    const lbHdr = ['Rank','Alliance','Chief Name','Chief ID', lbSuLabel,
       ...(lbKey==='day2' ? ['Eff Res SU','Raw SU','FC','FC Shards','Eff Shards','Steel (M)'] : []),
       'Scheduled'];
     aoa.push(lbHdr);
@@ -2532,7 +2508,7 @@ function exportXLSX() {
     lbData.forEach((c,i) => {
       const inTop = i < 48;
       aoa.push([
-        i+1, c.alliance, c.name, c.id, c.fcLevel, c[lbSuKey],
+        i+1, c.alliance, c.name, c.id, c[lbSuKey],
         ...(lbKey==='day2' ? [c.resEff, c.research, c.fc, c.shards||0, Math.round(c.effShards)||0, c.steel||0] : []),
         inTop ? 'Yes' : 'No'
       ]);
