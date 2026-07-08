@@ -1466,21 +1466,78 @@ function parseSheetTimestamp(s) {
   return Date.UTC(year, month - 1, day, hour, minute, second);
 }
 
+// Resolve which column holds the Chief ID. The form has two "Chief ID" columns:
+// the original "Chief ID (9 digit ID from chief page)" (historically col D) and a
+// later plain "Chief ID" added at the end of the form. Responses may land in
+// either, so pick whichever "Chief ID" column actually carries the most values.
+// Falls back to column D (index 3) for backward compatibility if no header matches.
+function resolveChiefIdCol(rows) {
+  const header = rows[0] || [];
+  const candidates = [];
+  for (let c=0;c<header.length;c++) {
+    if (/chief\s*id/i.test((header[c]==null?'':header[c]).toString())) candidates.push(c);
+  }
+  if (!candidates.length) return 3;
+  let best = candidates[0], bestCount = -1;
+  for (const c of candidates) {
+    let count = 0;
+    for (let i=1;i<rows.length;i++) {
+      const row = rows[i];
+      if (row && normId(row[c])) count++;
+    }
+    if (count > bestCount) { bestCount = count; best = c; }
+  }
+  return best;
+}
+
+// Resolve every field to a column index by matching the header row, so the app
+// tolerates columns being added, removed, or reordered in the form/sheet
+// (positional indices used to break silently whenever the form changed). The
+// three "Time slots" columns are assigned in order — construction, research,
+// training; the Chief ID is disambiguated by resolveChiefIdCol above.
+function resolveColumns(rows) {
+  const header = (rows[0] || []).map(h => (h==null?'':h).toString().trim().toLowerCase());
+  const find = re => { for (let i=0;i<header.length;i++) if (re.test(header[i])) return i; return -1; };
+  const findAll = re => { const out=[]; for (let i=0;i<header.length;i++) if (re.test(header[i])) out.push(i); return out; };
+  const slots = findAll(/time\s*slot/);
+  const ts = find(/timestamp/);
+  return {
+    ts:       ts >= 0 ? ts : 0,
+    name:     find(/chief\s*name/),
+    alliance: find(/alliance/),
+    id:       resolveChiefIdCol(rows),
+    fcLevel:  find(/furnace/),
+    acctType: find(/main account|farm/),
+    constr:   find(/speedups for construction/),
+    fc:       find(/fire crystals.*construction/),
+    research: find(/speedups for research/),
+    shards:   find(/shards/),
+    steel:    find(/steel/),
+    training: find(/speedups for training/),
+    slots1:   slots.length > 0 ? slots[0] : -1,
+    slots2:   slots.length > 1 ? slots[1] : -1,
+    slots3:   slots.length > 2 ? slots[2] : -1,
+  };
+}
+
 function processRows(rows) {
+  const col = resolveColumns(rows);
+  const at = (r, key) => { const i = col[key]; return (i != null && i >= 0) ? r[i] : ''; };
   const seen = {};
   for (let i=1;i<rows.length;i++) {
     const r=rows[i];
-    if (!r[0]&&!r[3]) continue;
-    const id = normId(r[3]);
+    const tsRaw = at(r,'ts');
+    if (!tsRaw && !at(r,'id')) continue;
+    const id = normId(at(r,'id'));
     if (!id) continue;
     // Timestamp: number (Excel serial) from XLSX, or string ('M/D/YYYY H:mm:ss')
     // from CSV. Excel serial and our UTC-ms output are not on the same scale, but
     // each path is internally monotonic and comparisons only happen within a path,
     // so dedup ordering is correct in both cases.
     let ts = 0;
-    if (typeof r[0]==='number') ts = r[0];
-    else if (typeof r[0]==='string') {
-      const parsed = parseSheetTimestamp(r[0]);
+    if (typeof tsRaw==='number') ts = tsRaw;
+    else if (typeof tsRaw==='string') {
+      const parsed = parseSheetTimestamp(tsRaw);
       if (parsed != null) ts = parsed;
     }
     if (!seen[id]||ts>seen[id].ts) seen[id]={ts,row:r};
@@ -1489,11 +1546,11 @@ function processRows(rows) {
   chiefs = [];
   for (const id in seen) {
     const r = seen[id].row;
-    const fc     = parseNum(r[7]);
-    const shards = parseNum(r[10]);
-    const steel  = parseNum(r[11]);
-    const rawRes = parseNum(r[9]);
-    const constr = parseNum(r[6]);
+    const fc     = parseNum(at(r,'fc'));
+    const shards = parseNum(at(r,'shards'));
+    const steel  = parseNum(at(r,'steel'));
+    const rawRes = parseNum(at(r,'research'));
+    const constr = parseNum(at(r,'constr'));
     const steelCap  = steel  > 0 ? (steel*1e6)/33000 : 99999;
     // Eff SU = MIN(raw SU, steel cap) — shards do not gate research, only boost points
     const resEff = Math.round(Math.min(rawRes, steelCap)*10)/10;
@@ -1507,20 +1564,20 @@ function processRows(rows) {
 
     chiefs.push({
       id,
-      name:      (r[1]||'').toString().trim()||'(unknown)',
-      alliance:  normaliseAlliance(r[2]),
-      fcLevel:   (r[4]||'').toString().trim(),
-      acctType:  (r[5]||'').toString().trim(),
+      name:      (at(r,'name')||'').toString().trim()||'(unknown)',
+      alliance:  normaliseAlliance(at(r,'alliance')),
+      fcLevel:   (at(r,'fcLevel')||'').toString().trim(),
+      acctType:  (at(r,'acctType')||'').toString().trim(),
       constr, fc, shards, effShards, shardsConverted, steel,
       research:  rawRes,
       resEff,
       resPoints,
       steelCapDisplay:  steel>0  ? Math.round(steelCap*10)/10  : null,
       bindFactor,
-      training:  parseNum(r[13]),
-      slots1:    r[8]  ? r[8].toString()  : '',
-      slots2:    r[12] ? r[12].toString() : '',
-      slots3:    r[15] ? r[15].toString() : '',
+      training:  parseNum(at(r,'training')),
+      slots1:    at(r,'slots1') ? at(r,'slots1').toString() : '',
+      slots2:    at(r,'slots2') ? at(r,'slots2').toString() : '',
+      slots3:    at(r,'slots3') ? at(r,'slots3').toString() : '',
     });
   }
   chiefs.sort((a, b) => a.id.localeCompare(b.id, 'en', {numeric: true}));
